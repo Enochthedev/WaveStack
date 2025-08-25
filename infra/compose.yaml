@@ -1,0 +1,32 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: wave
+      POSTGRES_DB: wave
+    volumes: ["pg:/var/lib/postgresql/data"]
+  redis:
+    image: redis:7
+
+  core-app:
+    build: ../apps/core-app
+    environment:
+      DATABASE_URL: postgres://postgres:wave@postgres:5432/wave
+      REDIS_URL: redis://redis:6379
+      PORT: 3000
+    ports: ["3000:3000"]
+    depends_on: [postgres, redis]
+
+  n8n:
+    image: n8nio/n8n:latest
+    environment:
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_DATABASE: wave
+      DB_POSTGRESDB_USER: postgres
+      DB_POSTGRESDB_PASSWORD: wave
+      TZ: Africa/Lagos
+    ports: ["5678:5678"]
+    depends_on: [postgres]
+
+volumes: { pg: {} }

@@ -1,0 +1,28 @@
+{
+  "name": "@wavestack/core-app",
+  "author": {
+    "name": "Wave",
+    "email": "wavedidwhat@gmail.com"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "build": "prisma generate && tsc && tsc-alias",
+    "migrate": "prisma migrate deploy"
+  },
+  "dependencies": {
+    "@prisma/client": "latest",
+    "bullmq": "latest",
+    "fastify": "latest",
+    "fastify-plugin": "latest",
+    "pino": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "prisma": "latest",
+    "tsc-alias": "^1.8.16",
+    "tsx": "latest",
+    "typescript": "latest"
+  }
+}

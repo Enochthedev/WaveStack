@@ -1,0 +1,16 @@
+{
+  "name": "wavestack",
+  "private": true,
+  "packageManager": "pnpm@9.12.3",
+  "workspaces": [
+    "apps/*",
+    "services/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "pnpm -C apps/core-app dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint || true",
+    "test": "pnpm -r test || true"
+  }
+}
