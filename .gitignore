@@ -42,7 +42,7 @@ build/
 *.tsbuildinfo
 *.tgz
 .env
-.env.*
+.env.local
 .DS_Store
 
 # Docker
@@ -95,3 +95,5 @@ Thumbs.db
 *.prisma
 *.prisma.*
 
+# Internal 
+scripts/

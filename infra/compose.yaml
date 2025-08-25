@@ -1,32 +1,226 @@
+# WaveStack — Dev Compose (profiles + env-driven)
+# Run only what you need:
+#   base stack:         docker compose -f infra/compose.yaml --profile base up -d
+#   + media (clipper):  docker compose -f infra/compose.yaml --profile base --profile media up -d
+#   + proxy (caddy):    docker compose -f infra/compose.yaml --profile base --profile proxy up -d
+#   + ops (n8n):        docker compose -f infra/compose.yaml --profile base --profile ops up -d
+
 services:
+  # =====================
+  # Core Infra
+  # =====================
+
   postgres:
     image: postgres:16
+    profiles: ["base"]
+    env_file: ["../.env"]
     environment:
-      POSTGRES_PASSWORD: wave
-      POSTGRES_DB: wave
-    volumes: ["pg:/var/lib/postgresql/data"]
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-wave}
+      POSTGRES_DB: ${POSTGRES_DB:-wave}
+    volumes:
+      - pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ${POSTGRES_DB:-wave}"]
+      interval: 30s
+      timeout: 3s
+      retries: 5
+
   redis:
     image: redis:7
+    profiles: ["base"]
+    env_file: ["../.env"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 2s
+      retries: 5
 
+  # =====================
+  # Core App (Fastify + Prisma + BullMQ)
+  # =====================
   core-app:
     build: ../apps/core-app
+    profiles: ["base"]
+    env_file:
+      - "../.env"                 # shared defaults
+      - "../apps/core-app/.env"   # service overrides (wins on conflict)
     environment:
-      DATABASE_URL: postgres://postgres:wave@postgres:5432/wave
-      REDIS_URL: redis://redis:6379
-      PORT: 3000
-    ports: ["3000:3000"]
-    depends_on: [postgres, redis]
+      # Strictly separate external vs internal ports
+      PORT: ${CORE_PORT_INTERNAL}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      # Service discovery (internal URL used by core to call clipper)
+      CLIPPER_INTERNAL_URL: ${CLIPPER_INTERNAL_URL}
+      # Optional: gateway-first pattern (uncomment if using caddy/nginx)
+      # GATEWAY_URL: ${GATEWAY_INTERNAL_URL}
+    ports:
+      - "${CORE_PORT}:${CORE_PORT_INTERNAL}"   # host:container
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"http=require('http');http.get('http://localhost:'+process.env.PORT+'/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\""
+        ]
+      interval: 30s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
 
+  # =====================
+  # Clipper (FastAPI + ffmpeg)
+  # Serves API on internal port; exposes /files/* for local preview via PUBLIC URL
+  # =====================
+  clipper:
+    build: ../services/clipper
+    profiles: ["media"]
+    env_file:
+      - "../.env"
+      - "../services/clipper/.env"
+    environment:
+      PORT: ${CLIPPER_PORT_INTERNAL}
+      PUBLIC_BASE: ${CLIPPER_PUBLIC_URL}          # used in responses (browser-facing URL)
+    ports:
+      - "${CLIPPER_PORT}:${CLIPPER_PORT_INTERNAL}" # host:container
+    volumes:
+      - clips:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:${CLIPPER_PORT_INTERNAL}/health >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  # =====================
+  # Caddy (Reverse Proxy) — optional
+  # - Proxies /api/* to core-app
+  # - Serves /files/* from the shared 'clips' volume
+  # =====================
+  caddy:
+    image: caddy:2
+    profiles: ["proxy"]
+    env_file: ["../.env"]
+    ports:
+      - "${CADDY_HTTP_PORT}:${CADDY_HTTP_PORT_INTERNAL}"     # 8080:80 by default
+      - "${CADDY_HTTPS_PORT}:${CADDY_HTTPS_PORT_INTERNAL}"   # 8443:443 by default
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - clips:/data:ro
+    depends_on:
+      core-app: { condition: service_started }
+      clipper:  { condition: service_started }
+
+  # =====================
+  # n8n (Automation) — optional
+  # =====================
   n8n:
     image: n8nio/n8n:latest
+    profiles: ["ops"]
+    env_file: ["../.env"]
     environment:
       DB_TYPE: postgresdb
       DB_POSTGRESDB_HOST: postgres
-      DB_POSTGRESDB_DATABASE: wave
+      DB_POSTGRESDB_DATABASE: ${POSTGRES_DB:-wave}
       DB_POSTGRESDB_USER: postgres
-      DB_POSTGRESDB_PASSWORD: wave
-      TZ: Africa/Lagos
-    ports: ["5678:5678"]
-    depends_on: [postgres]
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD:-wave}
+      TZ: ${TZ}
+      N8N_PORT: ${N8N_PORT_INTERNAL}
+    ports:
+      - "${N8N_PORT}:${N8N_PORT_INTERNAL}"
+    depends_on:
+      postgres: { condition: service_healthy }
 
-volumes: { pg: {} }
+  # =====================
+  # (Commented Example) Future: Ollama + Gateway
+  # =====================
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   profiles: ["ai"]
+  #   env_file: ["../.env"]
+  #   ports: ["${OLLAMA_PORT}:${OLLAMA_PORT_INTERNAL}"]
+  #   volumes: ["ollama:/root/.ollama"]
+  #
+  # ollama-gw:
+  #   build: ../services/ollama-gw
+  #   profiles: ["ai"]
+  #   env_file: ["../.env","../services/ollama-gw/.env"]
+  #   environment:
+  #     PORT: ${OLLAMA_GW_PORT_INTERNAL}
+  #     OLLAMA_URL: ${OLLAMA_INTERNAL_URL}
+  #   ports: ["${OLLAMA_GW_PORT}:${OLLAMA_GW_PORT_INTERNAL}"]
+
+  # =====================
+  # (Commented Example) Future: NGINX instead of Caddy
+  # =====================
+  # nginx:
+  #   image: nginx:alpine
+  #   profiles: ["proxy"]
+  #   ports:
+  #     - "${NGINX_HTTP_PORT}:${NGINX_HTTP_PORT_INTERNAL}"
+  #     - "${NGINX_HTTPS_PORT}:${NGINX_HTTPS_PORT_INTERNAL}"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - clips:/data:ro
+  #   depends_on:
+  #     core-app: { condition: service_started }
+  #     clipper:  { condition: service_started }
+
+# =====================
+# Volumes
+# =====================
+volumes:
+  pg: {}
+  clips: {}
+  # ollama: {}   # uncomment if using Ollama
+
+# =====================
+# HOW TO: Add a new service (demo)
+# =====================
+# 1) Create service folder with Dockerfile, .dockerignore, and .env.example
+# 2) Add a block like below:
+#
+#  my-service:
+#    build: ../services/my-service
+#    profiles: ["web"]                  # choose a sensible profile
+#    env_file:
+#      - "../.env"
+#      - "../services/my-service/.env"
+#    environment:
+#      PORT: ${MY_SERVICE_PORT_INTERNAL}
+#      DEP_URL: ${SOME_INTERNAL_URL}    # talk to another service by internal URL
+#    ports:
+#      - "${MY_SERVICE_PORT}:${MY_SERVICE_PORT_INTERNAL}"
+#    depends_on:
+#      core-app: { condition: service_started }
+#    healthcheck:
+#      test: ["CMD-SHELL", "wget -qO- http://localhost:${MY_SERVICE_PORT_INTERNAL}/health >/dev/null 2>&1 || exit 1"]
+#      interval: 30s
+#      timeout: 3s
+#      retries: 5
+#
+# 3) Add variables to .env.example (external/internal ports, URLs).
+# 4) Add a service-specific .env.example with any extra settings.
+#
+# HOW TO: Update an existing service
+# - Change image tag or rebuild after editing Dockerfile:
+#     docker compose -f infra/compose.yaml build core-app
+# - Apply env changes:
+#     docker compose -f infra/compose.yaml up -d --build core-app
+# - Roll back:
+#     docker compose -f infra/compose.yaml rollback core-app  # (if using compose v2 plugin) or re-run with previous tag.
+#
+# WHAT EACH SERVICE DOES
+# - postgres: primary relational DB for projects/assets/queue/posts.
+# - redis: job queues + rate-limit counters (BullMQ).
+# - core-app: HTTP API + workers (publish, analytics).
+# - clipper: ffmpeg-based clip extraction; returns browser-facing URLs.
+# - caddy: reverse proxy; serves /files/* and proxies /api/*.
+# - n8n: optional automation/orchestration workflows (webhooks, schedules).
+#
+# KUBERNETES (future)
+# - Place manifests under infra/k8s/.
+# - Mirror env separation using ConfigMaps/Secrets.
+# - Internal URLs become k8s service DNS (e.g., http://clipper.media.svc.cluster.local:8080).
+# - Use Ingress (nginx/caddy/traefik) to expose /api and /files.

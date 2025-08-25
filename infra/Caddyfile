@@ -1,0 +1,14 @@
+:80 {
+  handle_path /files/* {
+    root * /data
+    file_server
+  }
+
+  handle /api/* {
+    reverse_proxy core-app:${CORE_PORT_INTERNAL}
+  }
+
+  handle {
+    respond "WaveStack proxy is up" 200
+  }
+}
