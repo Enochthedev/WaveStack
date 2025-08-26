@@ -12,9 +12,12 @@
   },
   "dependencies": {
     "@prisma/client": "latest",
+    "@types/jsonwebtoken": "^9.0.10",
     "bullmq": "latest",
     "fastify": "latest",
     "fastify-plugin": "latest",
+    "jsonwebtoken": "^9.0.2",
+    "jwks-rsa": "^3.2.0",
     "pino": "latest",
     "zod": "latest"
   },

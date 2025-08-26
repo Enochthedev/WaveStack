@@ -23,6 +23,12 @@
       ],
       "@config/*": [
         "src/config/*"
+      ],
+      "@routes/*": [
+        "src/routes/*"
+      ],
+      "@auth/*": [
+        "src/modules/auth/*"
       ]
     }
   },

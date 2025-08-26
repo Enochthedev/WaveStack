@@ -62,7 +62,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "node -e \"http=require('http');http.get('http://localhost:'+process.env.PORT+'/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\""
+          "node -e \"http=require('http');http.get('http://localhost:'+process.env.PORT+'/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\""
         ]
       interval: 30s
       timeout: 3s
@@ -87,11 +87,29 @@ services:
     volumes:
       - clips:/data
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:${CLIPPER_PORT_INTERNAL}/health >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:${CLIPPER_PORT_INTERNAL}/api/v1/health >/dev/null 2>&1 || exit 1"]
       interval: 30s
       timeout: 3s
       retries: 5
       start_period: 10s
+
+  # =====================
+  # Clipper Worker (RQ)
+  # =====================
+  # Runs background jobs queued by the Clipper API (e.g. ffmpeg clipping tasks).
+  # - Uses the same image as the Clipper API, but runs `app.worker` instead of uvicorn.
+  # - Decouples HTTP request/response from long-running video operations.
+  # - Required for jobs to actually be processed; without this, /clip will enqueue
+  #   but nothing will run
+  clipper-worker:
+    build: ../services/clipper
+    profiles: ["media"]
+    env_file:
+      - "../.env"
+      - "../services/clipper/.env"
+    depends_on:
+      redis: { condition: service_healthy }
+    command: ["python","-m","app.worker"]
 
   # =====================
   # Caddy (Reverse Proxy) — optional
@@ -100,7 +118,7 @@ services:
   # =====================
   caddy:
     image: caddy:2
-    profiles: ["proxy"]
+    profiles: ["proxy-caddy"]
     env_file: ["../.env"]
     ports:
       - "${CADDY_HTTP_PORT}:${CADDY_HTTP_PORT_INTERNAL}"     # 8080:80 by default
@@ -112,6 +130,28 @@ services:
       core-app: { condition: service_started }
       clipper:  { condition: service_started }
 
+  # =====================
+  # NGINX (Reverse Proxy) — optional
+  # =====================
+  nginx:
+    image: nginx:alpine
+    profiles: ["proxy-nginx"]
+    env_file: ["../.env"]
+    ports:
+      - "${NGINX_HTTP_PORT}:${NGINX_HTTP_PORT_INTERNAL}"
+      - "${NGINX_HTTPS_PORT}:${NGINX_HTTPS_PORT_INTERNAL}"
+    volumes:
+      - ./nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - clips:/data:ro
+    depends_on:
+      core-app: { condition: service_started }
+      clipper:  { condition: service_started }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:${NGINX_HTTP_PORT_INTERNAL}/healthz >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
   # =====================
   # n8n (Automation) — optional
   # =====================

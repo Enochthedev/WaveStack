@@ -1,5 +1,5 @@
-import { startWorker } from "../../shared/queue";
-import { prisma } from "../../shared/db";
+import { startWorker } from "@shared/queue";
+import { prisma } from "@shared/db";
 
 startWorker(async ({ queueItemId, platform }) => {
   const qi = await prisma.queueItem.findUnique({ where: { id: queueItemId }, include: { asset: true }});

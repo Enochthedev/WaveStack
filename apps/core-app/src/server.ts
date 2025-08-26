@@ -1,22 +1,17 @@
 import Fastify from "fastify";
 import { loggerConfig } from "@shared/logger";
-import queueRoutes from "@modules/queue/routes";
-import cmsRoutes from "@modules/cms/routes";
-import publisherRoutes from "@modules/publisher/routes";
-import trendsRoutes from "@modules/trends/routes";
-import analyticsRoutes from "@modules/analytics/routes";
-import "@modules/publisher/worker"; // start worker
+import apiRoutes from "@routes/api";            // <— central api router
+import "@modules/publisher/worker";             // boot worker side-effects
 
-const app = Fastify({ 
-  logger: loggerConfig
-});
+const app = Fastify({ logger: loggerConfig });
 
-app.register(queueRoutes);
-app.register(cmsRoutes);
-app.register(publisherRoutes);
-app.register(trendsRoutes);
-app.register(analyticsRoutes);
+// everything lives under /api now
+app.register(apiRoutes, { prefix: "/api" });
 
 
-app.listen({ port: Number(process.env.PORT || 3000), host: "0.0.0.0" })
-  .catch((e: unknown) => { app.log.error(e); process.exit(1); });
+const port = Number(process.env.PORT || 3000);
+app
+  .listen({ port, host: "0.0.0.0" })
+  .catch((err) => { app.log.error(err); process.exit(1); });
+
+export type AppInstance = typeof app;

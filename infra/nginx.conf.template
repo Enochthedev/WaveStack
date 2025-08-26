@@ -1,0 +1,54 @@
+# This file is rendered to /etc/nginx/conf.d/default.conf (inside http{})
+
+# upstreams (internal Docker DNS names)
+upstream core_app { server core-app:${CORE_PORT_INTERNAL}; }
+upstream clipper  { server clipper:${CLIPPER_PORT_INTERNAL}; }
+
+server {
+  listen ${NGINX_HTTP_PORT_INTERNAL};
+
+  # Gateway health
+  location = /healthz { return 200 "ok"; }
+
+  # Static files from the shared 'clips' volume
+  location /files/ {
+    alias /data/;
+    autoindex on;   # dev only
+    add_header Access-Control-Allow-Origin *;
+  }
+
+  # (Optional) auth_request when core exposes /auth/validate
+  location = /_auth/validate {
+    internal;
+    proxy_pass http://core_app/auth/validate;
+    proxy_set_header Authorization $http_authorization;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-Id $request_id;
+  }
+
+  location /api/ {
+    auth_request /_auth/validate;          # enable when ready
+    error_page 401 = @unauthorized;
+    error_page 403 = @forbidden;
+
+    proxy_pass http://core_app$request_uri;   # core exposes /api/*
+    proxy_redirect off;
+    proxy_set_header Host $host;
+    proxy_set_header Authorization $http_authorization;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-Id $request_id;
+  }
+
+  # Optionally proxy clipper API behind gateway too
+  # location /clipper/ {
+  #   proxy_pass http://clipper;
+  #   proxy_set_header Host $host;
+  #   proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  #   proxy_set_header X-Forwarded-Proto $scheme;
+  # }
+  
+  location @unauthorized { return 401; }
+  location @forbidden    { return 403; }
+}

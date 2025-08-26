@@ -1,7 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { prisma } from "../../shared/db";
-import { publishQueue } from "../../shared/queue";
+import { prisma } from "@shared/db";
+import { publishQueue } from "@shared/queue";
 
 const Body = z.object({
   projectId: z.string(),
@@ -37,6 +37,9 @@ export default async function routes(app: FastifyInstance) {
     reply.code(201);
     return qi;
   });
-
-  app.get("/health", async () => ({ status: "ok" }));
+  app.get("/", async () => ({ ok: true }));
+  app.post("/enqueue", async (req, reply) => {
+    // your logic
+    return { queued: true };
+  });
 }
