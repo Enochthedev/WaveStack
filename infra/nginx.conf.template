@@ -3,6 +3,11 @@
 # upstreams (internal Docker DNS names)
 upstream core_app { server core-app:${CORE_PORT_INTERNAL}; }
 upstream clipper  { server clipper:${CLIPPER_PORT_INTERNAL}; }
+# (Optional) rate limit zone (per IP)
+limit_req_zone $binary_remote_addr zone=perip:10m rate=100r/m;
+
+# (Optional) request id for tracing
+map $request_id $req_id { default $request_id; }
 
 server {
   listen ${NGINX_HTTP_PORT_INTERNAL};
@@ -20,7 +25,10 @@ server {
   # (Optional) auth_request when core exposes /auth/validate
   location = /_auth/validate {
     internal;
-    proxy_pass http://core_app/auth/validate;
+    proxy_pass http://core_app/api/auth/validate;  # ✅ includes /api
+    proxy_pass_request_body off;                   # ✅ subrequest has no body
+    proxy_set_header Content-Length "";            # ✅ avoid CL mismatch
+
     proxy_set_header Authorization $http_authorization;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
@@ -28,11 +36,18 @@ server {
   }
 
   location /api/ {
-    auth_request /_auth/validate;          # enable when ready
+    auth_request /_auth/validate;
     error_page 401 = @unauthorized;
     error_page 403 = @forbidden;
 
-    proxy_pass http://core_app$request_uri;   # core exposes /api/*
+    # (optional) capture & forward identity/scopes from subrequest
+    auth_request_set $auth_user_id $upstream_http_x_user_id;
+    auth_request_set $auth_scopes  $upstream_http_x_scopes;
+    proxy_set_header X-User-Id $auth_user_id;
+    proxy_set_header X-Scopes  $auth_scopes;
+
+    limit_req zone=perip burst=20 nodelay;
+    proxy_pass http://core_app$request_uri;
     proxy_redirect off;
     proxy_set_header Host $host;
     proxy_set_header Authorization $http_authorization;
@@ -42,13 +57,13 @@ server {
   }
 
   # Optionally proxy clipper API behind gateway too
-  # location /clipper/ {
-  #   proxy_pass http://clipper;
-  #   proxy_set_header Host $host;
-  #   proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-  #   proxy_set_header X-Forwarded-Proto $scheme;
-  # }
-  
+  location /clipper/ {
+    proxy_pass http://clipper;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+
   location @unauthorized { return 401; }
   location @forbidden    { return 403; }
 }

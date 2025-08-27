@@ -217,7 +217,15 @@ service Uploader { rpc CreateSignedUrl(CreateSignedUrlRequest) returns (CreateSi
 
 ## 9) Security & Compliance
 
-- Internal service auth via `INTERNAL_TOKEN` headers (HMAC/JWT later).  
+- Centralized authentication via Core issuing JWTs (RS256).  
+- Gateway validates JWT using JWKS, enforcing `aud`, `iss`, `exp`, `nbf`.  
+- Gateway injects headers to services: `X-User-Id` (from `sub`), `X-Scopes` (from token scopes).  
+- Rate limiting at gateway (per-IP 100/min; tune per env).  
+- Minimal WAF guards at gateway; prefer dedicated WAF for production.  
+- East-west trust via mTLS or service mesh (Istio/Linkerd) with optional OPA sidecars for policy (e.g., only Core can call Clipper `POST /clip`).  
+- Internal service auth via `INTERNAL_TOKEN` headers (short-lived; rotate).  
+- Secrets via Vault/SOPS/SealedSecrets; avoid raw secrets in `.env`.  
+- Keys rotate using JWKS; tokens short-lived; use refresh tokens or a denylist at the gateway for revocation.  
 - OAuth tokens stored encrypted (KMS/age).  
 - Least privilege cloud creds; rotated keys.  
 - PII minimization; request redaction; audit logs for write paths.

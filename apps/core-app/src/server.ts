@@ -1,10 +1,15 @@
 import Fastify from "fastify";
 import { loggerConfig } from "@shared/logger";
 import apiRoutes from "@routes/api";            // <— central api router
-import "@modules/publisher/worker";             // boot worker side-effects
+import "@modules/publisher/worker";  
+import { getKeypair } from "@auth/keys";           // boot worker side-effects
 
 const app = Fastify({ logger: loggerConfig });
 
+app.get("/.well-known/jwks.json", async (_req, reply) => {
+  const { jwk } = await getKeypair();
+  return reply.send({ keys: [jwk] });
+});
 // everything lives under /api now
 app.register(apiRoutes, { prefix: "/api" });
 
