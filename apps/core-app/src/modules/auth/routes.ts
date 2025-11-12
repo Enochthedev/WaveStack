@@ -27,9 +27,10 @@ export default async function authRoutes(app: FastifyInstance) {
           audience: process.env.AUTH_AUDIENCE,
           issuer: process.env.AUTH_ISSUER,
         });
-        const { sub } = decoded || {};
+        const { sub, org_id } = decoded || {};
         const scopes = extractScopes(decoded);
         if (sub) reply.header('X-User-Id', String(sub));
+        if (org_id) reply.header('X-Org-Id', String(org_id));
         if (scopes) reply.header('X-Scopes', scopes);
         return reply.code(200).send({ ok: true });
       }
@@ -51,9 +52,10 @@ export default async function authRoutes(app: FastifyInstance) {
             (err: any, d: any) => (err ? reject(err) : resolve(d))
           );
         });
-        const { sub } = decoded || {};
+        const { sub, org_id } = decoded || {};
         const scopes = extractScopes(decoded);
         if (sub) reply.header('X-User-Id', String(sub));
+        if (org_id) reply.header('X-Org-Id', String(org_id));
         if (scopes) reply.header('X-Scopes', scopes);
         return reply.code(200).send({ ok: true });
       }
@@ -97,6 +99,7 @@ export default async function authRoutes(app: FastifyInstance) {
   const token = jwt.sign(
     {
       sub: client_id,
+      org_id: client.org_id || 'org_default', // Include org_id from client config
       scope: scopeStr,                  // OIDC-style space-delimited
       iat: now,
       nbf: now - 5,

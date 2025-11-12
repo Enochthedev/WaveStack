@@ -8,7 +8,10 @@
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
     "build": "prisma generate && tsc && tsc-alias",
-    "migrate": "prisma migrate deploy"
+    "migrate": "prisma migrate deploy",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@prisma/client": "latest",
@@ -24,9 +27,11 @@
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
+    "@vitest/coverage-v8": "latest",
     "prisma": "latest",
     "tsc-alias": "^1.8.16",
     "tsx": "latest",
-    "typescript": "latest"
+    "typescript": "latest",
+    "vitest": "latest"
   }
 }

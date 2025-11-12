@@ -1,0 +1,137 @@
+// Prisma schema for WaveStack Core App
+// This schema defines the data models for the creator automation platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Queue items represent content scheduled for publishing across platforms
+model QueueItem {
+  id              String   @id @default(cuid())
+  orgId           String   // Organization identifier (extracted from JWT)
+  projectId       String   // Project this content belongs to
+  assetId         String   // Reference to the media asset (video, image, etc.)
+
+  title           String   @db.VarChar(120)
+  caption         String?  @db.Text
+  hashtags        String[] @default([])
+  platforms       String[] // e.g., ["youtube", "instagram", "x"]
+
+  scheduleAt      DateTime?
+  idempotencyKey  String   @unique
+  status          String   // e.g., "queued", "processing", "published", "failed"
+
+  outbox          Json     @default("[]") // Event log for state changes
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  asset           Asset    @relation(fields: [assetId], references: [id])
+  posts           Post[]
+
+  @@index([orgId])
+  @@index([projectId])
+  @@index([status])
+  @@index([scheduleAt])
+  @@map("queue_items")
+}
+
+// Posts represent published content on external platforms
+model Post {
+  id            String   @id @default(cuid())
+  orgId         String
+  queueItemId   String
+  platform      String   // "youtube", "instagram", "x", etc.
+  externalId    String   // Platform-specific post ID
+  url           String   // Direct URL to the published content
+
+  publishedAt   DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  queueItem     QueueItem @relation(fields: [queueItemId], references: [id], onDelete: Cascade)
+
+  @@unique([queueItemId, platform])
+  @@index([orgId])
+  @@index([platform])
+  @@index([publishedAt])
+  @@map("posts")
+}
+
+// Assets represent media files (videos, images, etc.) used in content
+model Asset {
+  id          String   @id @default(cuid())
+  orgId       String
+  projectId   String?
+
+  // Media metadata
+  filename    String?
+  mimeType    String?
+  sizeBytes   BigInt?
+  duration    Int?     // Duration in seconds for video/audio
+
+  // Storage location
+  storageType String?  // "local", "s3", "gdrive", "onedrive"
+  storagePath String?  // Path or URL to the asset
+
+  // Clip metadata (if this asset is a clip)
+  sourceUrl   String?  // Original stream/video URL
+  startTime   Float?   // Start timestamp in source video
+  endTime     Float?   // End timestamp in source video
+
+  // Processing status
+  status      String   @default("pending") // "pending", "processing", "ready", "failed"
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  queueItems  QueueItem[]
+
+  @@index([orgId])
+  @@index([projectId])
+  @@index([status])
+  @@map("assets")
+}
+
+// Projects organize content and assets
+model Project {
+  id          String   @id @default(cuid())
+  orgId       String
+  name        String
+  description String?  @db.Text
+
+  // Project settings
+  settings    Json     @default("{}")
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([orgId])
+  @@map("projects")
+}
+
+// Organizations (tenants) for multi-org support
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+
+  // Subscription/billing
+  plan        String   @default("free") // "free", "pro", "enterprise"
+
+  // Settings
+  settings    Json     @default("{}")
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("organizations")
+}
