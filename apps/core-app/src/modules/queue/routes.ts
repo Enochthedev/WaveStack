@@ -18,13 +18,17 @@ export default async function routes(app: FastifyInstance) {
     const idem = req.headers["idempotency-key"];
     if (!idem || typeof idem !== "string") return reply.code(400).send({ message: "Missing Idempotency-Key" });
 
+    // Extract orgId from auth headers (set by gateway after JWT validation)
+    const orgId = req.headers["x-org-id"] as string;
+    if (!orgId) return reply.code(401).send({ message: "Missing organization context" });
+
     const data = Body.parse(req.body);
     const existing = await prisma.queueItem.findUnique({ where: { idempotencyKey: idem }});
     if (existing) return existing;
 
     const qi = await prisma.queueItem.create({
       data: {
-        orgId: "org_demo", // TODO: replace with JWT org
+        orgId,
         ...data,
         idempotencyKey: idem,
         status: "queued"

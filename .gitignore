@@ -91,9 +91,13 @@ coverage.out
 .DS_Store
 Thumbs.db
 
-# Prisma
-*.prisma
-*.prisma.*
+# Prisma (keep schema.prisma, ignore generated client)
+**/node_modules/.prisma/
+**/@prisma/client/
+
+# RSA keys (JWT signing keys should never be committed)
+**/keys/
+jwt-*.pem
 
 # Internal 
 scripts/
