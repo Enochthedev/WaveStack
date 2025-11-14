@@ -118,6 +118,33 @@ services:
     #           capabilities: [gpu]
     restart: unless-stopped
 
+  # YouTube Publisher (Python/FastAPI)
+  youtube-publisher:
+    build:
+      context: ./services/youtube-publisher
+      dockerfile: Dockerfile
+    ports:
+      - "8500:8500"
+    environment:
+      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
+      - REDIS_URL=redis://redis:6379
+      - YOUTUBE_CLIENT_ID=${YOUTUBE_CLIENT_ID}
+      - YOUTUBE_CLIENT_SECRET=${YOUTUBE_CLIENT_SECRET}
+      - THUMBNAIL_GENERATOR_URL=http://thumbnail-generator:8400
+      - AI_PERSONALITY_URL=http://ai-personality:8200
+      - AUTO_GENERATE_THUMBNAILS=true
+      - USE_AI_DESCRIPTIONS=true
+      - USE_AI_TAGS=true
+    volumes:
+      - ./services/youtube-publisher:/app
+      - youtube_credentials:/app/credentials
+      - youtube_uploads:/app/uploads
+    depends_on:
+      - redis
+      - thumbnail-generator
+      - ai-personality
+    restart: unless-stopped
+
   # Core App (Fastify/TypeScript)
   core-app:
     build:
@@ -349,6 +376,8 @@ volumes:
   ml_models:
   thumbnail_data:
   thumbnail_models:
+  youtube_credentials:
+  youtube_uploads:
   core_app_keys:
   clipper_cache:
   n8n_data:
