@@ -41,6 +41,51 @@ services:
     environment:
       - IS_PERSISTENT=TRUE
 
+  # Ollama for local LLM inference
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    # Uncomment for GPU support (requires nvidia-container-toolkit)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+    restart: unless-stopped
+
+  # ML Training Service (Python/FastAPI)
+  ml-training:
+    build:
+      context: ./services/ml-training
+      dockerfile: Dockerfile
+    ports:
+      - "8300:8300"
+    environment:
+      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
+      - REDIS_URL=redis://redis:6379
+      - HUGGINGFACE_TOKEN=${HUGGINGFACE_TOKEN}
+      - DEFAULT_BASE_MODEL=${ML_BASE_MODEL:-meta-llama/Llama-2-7b-chat-hf}
+    volumes:
+      - ./services/ml-training:/app
+      - ml_models:/app/models
+    depends_on:
+      - postgres
+      - redis
+    # Uncomment for GPU support (requires nvidia-container-toolkit)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+    restart: unless-stopped
+
   # Core App (Fastify/TypeScript)
   core-app:
     build:
@@ -82,7 +127,7 @@ services:
   # AI Personality Service (Python/FastAPI)
   ai-personality:
     build:
-      context: ./services/ai-personality-py
+      context: ./services/ai-personality
       dockerfile: Dockerfile
     ports:
       - "8200:8200"
@@ -91,19 +136,24 @@ services:
       - REDIS_URL=redis://redis:6379
       - CHROMA_HOST=chromadb
       - CHROMA_PORT=8000
-      - AI_PROVIDER=${AI_PROVIDER:-openai}
+      - AI_PROVIDER=${AI_PROVIDER:-ollama}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama2}
+      - ML_TRAINING_URL=http://ml-training:8300
       - PERSONALITY_TEMPERATURE=0.8
       - PERSONALITY_MAX_TOKENS=500
       - SENTIMENT_FILTERING=true
       - CONTROVERSY_AVOIDANCE=true
     volumes:
-      - ./services/ai-personality-py:/app
+      - ./services/ai-personality:/app
     depends_on:
       - postgres
       - redis
       - chromadb
+      - ollama
+      - ml-training
     restart: unless-stopped
 
   # Discord Bot (TypeScript)
@@ -263,6 +313,8 @@ volumes:
   postgres_data:
   redis_data:
   chroma_data:
+  ollama_data:
+  ml_models:
   core_app_keys:
   clipper_cache:
   n8n_data:
