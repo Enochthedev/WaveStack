@@ -1,0 +1,221 @@
+version: '3.8'
+
+services:
+  # Database
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: wave
+      POSTGRES_DB: wave
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ChromaDB for vector embeddings
+  chromadb:
+    image: chromadb/chroma:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+
+  # Core App (Fastify/TypeScript)
+  core-app:
+    build:
+      context: ./apps/core-app
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
+      - REDIS_URL=redis://redis:6379
+      - AUTH_KEYS_DIR=/app/keys
+    volumes:
+      - ./apps/core-app:/app
+      - core_app_keys:/app/keys
+      - /app/node_modules
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
+  # Clipper Service (Python/FastAPI)
+  clipper:
+    build:
+      context: ./services/clipper
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - WAVESTACK_API_URL=http://core-app:3000
+    volumes:
+      - ./services/clipper:/app
+      - clipper_cache:/tmp/clips
+    depends_on:
+      - redis
+      - core-app
+    restart: unless-stopped
+
+  # AI Personality Service (Python/FastAPI)
+  ai-personality:
+    build:
+      context: ./services/ai-personality-py
+      dockerfile: Dockerfile
+    ports:
+      - "8200:8200"
+    environment:
+      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
+      - REDIS_URL=redis://redis:6379
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+      - AI_PROVIDER=${AI_PROVIDER:-openai}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - PERSONALITY_TEMPERATURE=0.8
+      - PERSONALITY_MAX_TOKENS=500
+      - SENTIMENT_FILTERING=true
+      - CONTROVERSY_AVOIDANCE=true
+    volumes:
+      - ./services/ai-personality-py:/app
+    depends_on:
+      - postgres
+      - redis
+      - chromadb
+    restart: unless-stopped
+
+  # Discord Bot (TypeScript)
+  discord-bot:
+    build:
+      context: ./services/discord-bot
+      dockerfile: Dockerfile
+    environment:
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
+      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
+      - REDIS_URL=redis://redis:6379
+      - WAVESTACK_API_URL=http://core-app:3000
+      - AI_PERSONALITY_URL=http://ai-personality:8200
+    volumes:
+      - ./services/discord-bot:/app
+      - /app/node_modules
+    depends_on:
+      - postgres
+      - redis
+      - core-app
+      - ai-personality
+    restart: unless-stopped
+
+  # Twitch Bot (TypeScript)
+  twitch-bot:
+    build:
+      context: ./services/twitch-bot
+      dockerfile: Dockerfile
+    environment:
+      - TWITCH_BOT_USERNAME=${TWITCH_BOT_USERNAME}
+      - TWITCH_OAUTH_TOKEN=${TWITCH_OAUTH_TOKEN}
+      - TWITCH_CLIENT_ID=${TWITCH_CLIENT_ID}
+      - TWITCH_CLIENT_SECRET=${TWITCH_CLIENT_SECRET}
+      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
+      - REDIS_URL=redis://redis:6379
+      - WAVESTACK_API_URL=http://core-app:3000
+      - AI_PERSONALITY_URL=http://ai-personality:8200
+    volumes:
+      - ./services/twitch-bot:/app
+      - /app/node_modules
+    depends_on:
+      - postgres
+      - redis
+      - core-app
+      - ai-personality
+    restart: unless-stopped
+
+  # Telegram Bot (TypeScript)
+  telegram-bot:
+    build:
+      context: ./services/telegram-bot
+      dockerfile: Dockerfile
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
+      - REDIS_URL=redis://redis:6379
+      - WAVESTACK_API_URL=http://core-app:3000
+      - AI_PERSONALITY_URL=http://ai-personality:8200
+    volumes:
+      - ./services/telegram-bot:/app
+      - /app/node_modules
+    depends_on:
+      - postgres
+      - redis
+      - core-app
+      - ai-personality
+    restart: unless-stopped
+
+  # Social Ingest Service (TypeScript)
+  social-ingest:
+    build:
+      context: ./services/social-ingest
+      dockerfile: Dockerfile
+    ports:
+      - "8100:8100"
+    environment:
+      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
+      - REDIS_URL=redis://redis:6379
+      - AI_PERSONALITY_URL=http://ai-personality:8200
+    volumes:
+      - ./services/social-ingest:/app
+      - /app/node_modules
+    depends_on:
+      - postgres
+      - redis
+      - ai-personality
+    restart: unless-stopped
+
+  # n8n for workflow automation
+  n8n:
+    image: n8nio/n8n:latest
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD:-changeme}
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - WEBHOOK_URL=http://localhost:5678/
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      - ai-personality
+      - core-app
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  chroma_data:
+  core_app_keys:
+  clipper_cache:
+  n8n_data:
