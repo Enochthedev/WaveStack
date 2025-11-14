@@ -173,6 +173,28 @@ services:
       - ai-personality
     restart: unless-stopped
 
+  # WhatsApp Bot (TypeScript)
+  whatsapp-bot:
+    build:
+      context: ./services/whatsapp-bot
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
+      - REDIS_URL=redis://redis:6379
+      - AI_PERSONALITY_URL=http://ai-personality:8200
+      - CREATOR_USER_ID=${CREATOR_USER_ID:-default_user}
+      - AUTO_RESPOND=${WHATSAPP_AUTO_RESPOND:-false}
+      - RESPOND_TO_GROUPS=${WHATSAPP_RESPOND_TO_GROUPS:-true}
+    volumes:
+      - ./services/whatsapp-bot:/app
+      - /app/node_modules
+      - whatsapp_auth:/app/.wwebjs_auth
+    depends_on:
+      - postgres
+      - redis
+      - ai-personality
+    restart: unless-stopped
+
   # Social Ingest Service (TypeScript)
   social-ingest:
     build:
@@ -244,3 +266,4 @@ volumes:
   core_app_keys:
   clipper_cache:
   n8n_data:
+  whatsapp_auth:
