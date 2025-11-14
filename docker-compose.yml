@@ -193,6 +193,31 @@ services:
       - ai-personality
     restart: unless-stopped
 
+  # Twitter Auto-Poster (Python)
+  twitter-autoposter:
+    build:
+      context: ./services/twitter-autoposter
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
+      - REDIS_URL=redis://redis:6379
+      - AI_PERSONALITY_URL=http://ai-personality:8200
+      - TWITTER_API_KEY=${TWITTER_API_KEY}
+      - TWITTER_API_SECRET=${TWITTER_API_SECRET}
+      - TWITTER_ACCESS_TOKEN=${TWITTER_ACCESS_TOKEN}
+      - TWITTER_ACCESS_SECRET=${TWITTER_ACCESS_SECRET}
+      - TWITTER_BEARER_TOKEN=${TWITTER_BEARER_TOKEN}
+      - TWITTER_POST_INTERVAL=${TWITTER_POST_INTERVAL:-60}
+      - AUTO_GENERATE_TWEETS=${AUTO_GENERATE_TWEETS:-true}
+      - AUTO_POST_ENABLED=${AUTO_POST_ENABLED:-false}
+    volumes:
+      - ./services/twitter-autoposter:/app
+    depends_on:
+      - postgres
+      - redis
+      - ai-personality
+    restart: unless-stopped
+
   # n8n for workflow automation
   n8n:
     image: n8nio/n8n:latest
