@@ -1,7 +1,7 @@
 {
   "name": "@wavestack/whatsapp-bot",
   "version": "1.0.0",
-  "description": "WhatsApp bot with AI personality integration",
+  "description": "WaveStack WhatsApp bot with AI personality",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
@@ -9,18 +9,16 @@
     "build": "tsc"
   },
   "dependencies": {
-    "@prisma/client": "latest",
-    "fastify": "^4.25.0",
-    "axios": "^1.6.0",
     "whatsapp-web.js": "^1.23.0",
     "qrcode-terminal": "^0.12.0",
     "pino": "^8.17.0",
     "redis": "^4.6.0",
+    "axios": "^1.6.0",
     "dotenv": "^16.3.1"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
-    "prisma": "latest",
+    "@types/qrcode-terminal": "^0.12.2",
     "tsx": "^4.7.0",
     "typescript": "^5.3.0"
   }
