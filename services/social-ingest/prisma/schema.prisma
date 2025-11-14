@@ -1,0 +1,140 @@
+// Social Ingest Service Schema
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Normalized message model across all platforms
+model Message {
+  id            String   @id @default(cuid())
+  platform      String   // "discord", "twitch", "youtube", "twitter"
+  platformId    String   // Original message ID from platform
+  channelId     String   // Channel/room/chat ID
+  channelName   String?  // Human-readable channel name
+
+  userId        String   // Platform-specific user ID
+  username      String
+  userDisplayName String?
+  userAvatarUrl String?
+
+  content       String   @db.Text
+  contentType   String   @default("text") // "text", "image", "video", "link"
+
+  attachments   Json     @default("[]") // URLs, embeds, etc.
+  mentions      String[] @default([])
+  hashtags      String[] @default([])
+  emotes        Json     @default("[]") // Platform-specific emotes
+
+  replyToId     String?  // If this is a reply
+  threadId      String?  // For threading
+
+  reactions     Json     @default("{}") // Emoji reactions and counts
+
+  isBot         Boolean  @default(false)
+  isPinned      Boolean  @default(false)
+  isEdited      Boolean  @default(false)
+  isDeleted     Boolean  @default(false)
+
+  metadata      Json     @default("{}") // Platform-specific data
+
+  createdAt     DateTime
+  editedAt      DateTime?
+  deletedAt     DateTime?
+  ingestedAt    DateTime @default(now())
+
+  @@unique([platform, platformId])
+  @@index([platform, channelId, createdAt])
+  @@index([userId, createdAt])
+  @@index([username])
+  @@index([createdAt])
+  @@map("messages")
+}
+
+// Platform events (stream start, raids, subscriptions, etc.)
+model Event {
+  id            String   @id @default(cuid())
+  platform      String
+  platformId    String?
+  eventType     String   // "stream_start", "stream_end", "raid", "subscription", "bits", "follow"
+
+  channelId     String
+  channelName   String?
+
+  userId        String?  // User who triggered the event
+  username      String?
+
+  data          Json     // Event-specific data
+
+  viewerCount   Int?
+  subscriberCount Int?
+
+  metadata      Json     @default("{}")
+
+  createdAt     DateTime
+  ingestedAt    DateTime @default(now())
+
+  @@index([platform, eventType, createdAt])
+  @@index([channelId, createdAt])
+  @@map("events")
+}
+
+// User analytics aggregation
+model UserAnalytics {
+  id                String   @id @default(cuid())
+  platform          String
+  userId            String
+  username          String
+
+  messageCount      Int      @default(0)
+  reactionCount     Int      @default(0)
+  mentionCount      Int      @default(0)
+
+  averageLength     Float    @default(0)
+  sentimentScore    Float?   // -1 to 1
+
+  activeHours       Json     @default("{}") // Hour-of-day distribution
+  activeDays        Json     @default("{}") // Day-of-week distribution
+
+  topEmotes         Json     @default("[]")
+  topHashtags       Json     @default("[]")
+
+  firstSeen         DateTime
+  lastSeen          DateTime
+  updatedAt         DateTime @updatedAt
+
+  @@unique([platform, userId])
+  @@index([platform, messageCount])
+  @@map("user_analytics")
+}
+
+// Channel analytics
+model ChannelAnalytics {
+  id                String   @id @default(cuid())
+  platform          String
+  channelId         String
+  channelName       String?
+
+  messageCount      Int      @default(0)
+  uniqueUsers       Int      @default(0)
+
+  peakViewers       Int?
+  averageViewers    Float?
+
+  streamDuration    Int?     // Minutes
+
+  topUsers          Json     @default("[]") // Most active users
+  topEmotes         Json     @default("[]")
+  topHashtags       Json     @default("[]")
+
+  date              DateTime @db.Date
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([platform, channelId, date])
+  @@index([platform, date])
+  @@map("channel_analytics")
+}
