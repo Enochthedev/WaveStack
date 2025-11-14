@@ -86,6 +86,38 @@ services:
     #           capabilities: [gpu]
     restart: unless-stopped
 
+  # Thumbnail Generator (Python/FastAPI)
+  thumbnail-generator:
+    build:
+      context: ./services/thumbnail-generator
+      dockerfile: Dockerfile
+    ports:
+      - "8400:8400"
+    environment:
+      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
+      - REDIS_URL=redis://redis:6379
+      - IMAGE_PROVIDER=${THUMBNAIL_IMAGE_PROVIDER:-local}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - STABILITY_API_KEY=${STABILITY_API_KEY}
+      - AI_PERSONALITY_URL=http://ai-personality:8200
+      - USE_AI_PROMPTS=true
+    volumes:
+      - ./services/thumbnail-generator:/app
+      - thumbnail_data:/app/thumbnails
+      - thumbnail_models:/app/models
+    depends_on:
+      - redis
+      - ai-personality
+    # Uncomment for GPU support (recommended for local Stable Diffusion)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+    restart: unless-stopped
+
   # Core App (Fastify/TypeScript)
   core-app:
     build:
@@ -315,6 +347,8 @@ volumes:
   chroma_data:
   ollama_data:
   ml_models:
+  thumbnail_data:
+  thumbnail_models:
   core_app_keys:
   clipper_cache:
   n8n_data:
