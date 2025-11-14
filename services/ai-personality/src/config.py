@@ -23,6 +23,18 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str | None = None
     ANTHROPIC_MODEL: str = "claude-3-sonnet-20240229"
 
+    # Ollama (Local LLM)
+    OLLAMA_BASE_URL: str = "http://ollama:11434"
+    OLLAMA_MODEL: str = "llama2"  # llama2, mistral, codellama, etc.
+
+    # Hugging Face (Local transformers)
+    HUGGINGFACE_MODEL: str = "meta-llama/Llama-2-7b-chat-hf"  # or mistralai/Mistral-7B-Instruct-v0.1
+    HUGGINGFACE_CACHE_DIR: str = "./models/huggingface"
+
+    # ML Training Service (for fine-tuned models)
+    ML_TRAINING_URL: str = "http://ml-training:8300"
+    FINETUNED_MODEL_PATH: str = "./models/finetuned"
+
     # ChromaDB
     CHROMA_PATH: str = "./data/chroma"
     CHROMA_COLLECTION: str = "wavestack_memories"

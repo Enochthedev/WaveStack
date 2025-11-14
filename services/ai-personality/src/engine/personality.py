@@ -10,6 +10,7 @@ from openai import AsyncOpenAI
 from anthropic import AsyncAnthropic
 from prisma import Prisma
 from redis.asyncio import Redis
+import httpx
 
 from ..config import settings
 
@@ -24,17 +25,48 @@ class PersonalityEngine:
         self.redis = redis
         self.openai: Optional[AsyncOpenAI] = None
         self.anthropic: Optional[AsyncAnthropic] = None
+        self.ollama_client: Optional[httpx.AsyncClient] = None
+        self.hf_pipeline = None
         self.provider = settings.AI_PROVIDER
 
     async def initialize(self):
         """Initialize AI providers"""
         if self.provider == "openai" and settings.OPENAI_API_KEY:
             self.openai = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-            logger.info("OpenAI initialized")
+            logger.info("✅ OpenAI initialized")
 
         elif self.provider == "anthropic" and settings.ANTHROPIC_API_KEY:
             self.anthropic = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
-            logger.info("Anthropic Claude initialized")
+            logger.info("✅ Anthropic Claude initialized")
+
+        elif self.provider == "ollama":
+            self.ollama_client = httpx.AsyncClient(base_url=settings.OLLAMA_BASE_URL)
+            logger.info(f"✅ Ollama initialized ({settings.OLLAMA_MODEL})")
+
+        elif self.provider == "huggingface":
+            try:
+                from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
+                import torch
+
+                model_name = settings.HUGGINGFACE_MODEL
+                device = "cuda" if torch.cuda.is_available() else "cpu"
+
+                logger.info(f"Loading Hugging Face model: {model_name} on {device}")
+
+                self.hf_pipeline = pipeline(
+                    "text-generation",
+                    model=model_name,
+                    device=device,
+                    max_length=settings.PERSONALITY_MAX_TOKENS,
+                    temperature=settings.PERSONALITY_TEMPERATURE
+                )
+
+                logger.info(f"✅ Hugging Face initialized ({model_name} on {device})")
+            except Exception as e:
+                logger.error(f"Failed to initialize Hugging Face: {e}")
+
+        elif self.provider == "local":
+            logger.info("✅ Using local fine-tuned model (training service)")
 
     async def generate_response(
         self,
@@ -59,13 +91,19 @@ class PersonalityEngine:
             # Build system prompt
             system_prompt = self._build_system_prompt(profile, memories)
 
-            # Generate response
+            # Generate response based on provider
             if self.provider == "openai" and self.openai:
                 response = await self._generate_with_openai(system_prompt, history, message)
             elif self.provider == "anthropic" and self.anthropic:
                 response = await self._generate_with_claude(system_prompt, history, message)
+            elif self.provider == "ollama" and self.ollama_client:
+                response = await self._generate_with_ollama(system_prompt, history, message)
+            elif self.provider == "huggingface" and self.hf_pipeline:
+                response = await self._generate_with_huggingface(system_prompt, history, message)
+            elif self.provider == "local":
+                response = await self._generate_with_local(system_prompt, history, message)
             else:
-                raise ValueError("No AI provider configured")
+                raise ValueError(f"No AI provider configured or provider '{self.provider}' not initialized")
 
             # Save conversation
             await self._save_conversation(user_id, message, response, context)
@@ -122,6 +160,102 @@ class PersonalityEngine:
         )
 
         return response.content[0].text
+
+    async def _generate_with_ollama(
+        self,
+        system_prompt: str,
+        history: List[Dict[str, str]],
+        message: str
+    ) -> str:
+        """Generate response using Ollama (local LLM)"""
+        # Build full prompt with history
+        full_prompt = f"{system_prompt}\n\n"
+
+        for msg in history:
+            role = "User" if msg["role"] == "user" else "Assistant"
+            full_prompt += f"{role}: {msg['content']}\n"
+
+        full_prompt += f"User: {message}\nAssistant:"
+
+        # Call Ollama API
+        response = await self.ollama_client.post(
+            "/api/generate",
+            json={
+                "model": settings.OLLAMA_MODEL,
+                "prompt": full_prompt,
+                "stream": False,
+                "options": {
+                    "temperature": settings.PERSONALITY_TEMPERATURE,
+                    "num_predict": settings.PERSONALITY_MAX_TOKENS
+                }
+            },
+            timeout=60.0
+        )
+
+        result = response.json()
+        return result.get("response", "").strip()
+
+    async def _generate_with_huggingface(
+        self,
+        system_prompt: str,
+        history: List[Dict[str, str]],
+        message: str
+    ) -> str:
+        """Generate response using Hugging Face transformers"""
+        import asyncio
+
+        # Build full prompt
+        full_prompt = f"{system_prompt}\n\n"
+
+        for msg in history:
+            role = "User" if msg["role"] == "user" else "Assistant"
+            full_prompt += f"{role}: {msg['content']}\n"
+
+        full_prompt += f"User: {message}\nAssistant:"
+
+        # Run pipeline in thread pool (Hugging Face is CPU-bound)
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            lambda: self.hf_pipeline(
+                full_prompt,
+                max_new_tokens=settings.PERSONALITY_MAX_TOKENS,
+                temperature=settings.PERSONALITY_TEMPERATURE,
+                do_sample=True,
+                top_p=0.9,
+                pad_token_id=self.hf_pipeline.tokenizer.eos_token_id
+            )
+        )
+
+        # Extract generated text (remove prompt)
+        generated = result[0]["generated_text"]
+        response = generated.replace(full_prompt, "").strip()
+
+        return response
+
+    async def _generate_with_local(
+        self,
+        system_prompt: str,
+        history: List[Dict[str, str]],
+        message: str
+    ) -> str:
+        """Generate response using local fine-tuned model (ML training service)"""
+        # Call ML training service API
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{settings.ML_TRAINING_URL}/api/v1/generate",
+                json={
+                    "system_prompt": system_prompt,
+                    "history": history,
+                    "message": message,
+                    "temperature": settings.PERSONALITY_TEMPERATURE,
+                    "max_tokens": settings.PERSONALITY_MAX_TOKENS
+                },
+                timeout=30.0
+            )
+
+            result = response.json()
+            return result.get("response", "")
 
     def _build_system_prompt(self, profile: Any, memories: List[Any]) -> str:
         """Build system prompt from personality profile and memories"""
