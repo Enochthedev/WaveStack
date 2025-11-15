@@ -145,6 +145,36 @@ services:
       - ai-personality
     restart: unless-stopped
 
+  # Social Publisher (Python/FastAPI)
+  social-publisher:
+    build:
+      context: ./services/social-publisher
+      dockerfile: Dockerfile
+    ports:
+      - "8600:8600"
+    environment:
+      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
+      - REDIS_URL=redis://redis:6379
+      - INSTAGRAM_USERNAME=${INSTAGRAM_USERNAME}
+      - INSTAGRAM_PASSWORD=${INSTAGRAM_PASSWORD}
+      - TIKTOK_SESSION_ID=${TIKTOK_SESSION_ID}
+      - FACEBOOK_ACCESS_TOKEN=${FACEBOOK_ACCESS_TOKEN}
+      - FACEBOOK_PAGE_ID=${FACEBOOK_PAGE_ID}
+      - LINKEDIN_ACCESS_TOKEN=${LINKEDIN_ACCESS_TOKEN}
+      - AI_PERSONALITY_URL=http://ai-personality:8200
+      - THUMBNAIL_GENERATOR_URL=http://thumbnail-generator:8400
+      - USE_AI_CAPTIONS=true
+      - USE_AI_HASHTAGS=true
+    volumes:
+      - ./services/social-publisher:/app
+      - social_sessions:/app/sessions
+      - social_uploads:/app/uploads
+    depends_on:
+      - redis
+      - ai-personality
+      - thumbnail-generator
+    restart: unless-stopped
+
   # Core App (Fastify/TypeScript)
   core-app:
     build:
@@ -378,6 +408,8 @@ volumes:
   thumbnail_models:
   youtube_credentials:
   youtube_uploads:
+  social_sessions:
+  social_uploads:
   core_app_keys:
   clipper_cache:
   n8n_data:
