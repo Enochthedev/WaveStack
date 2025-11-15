@@ -283,6 +283,8 @@ services:
       - REDIS_URL=redis://redis:6379
       - WAVESTACK_API_URL=http://core-app:3000
       - AI_PERSONALITY_URL=http://ai-personality:8200
+      - USE_AI_MODERATION=${USE_AI_MODERATION:-true}
+      - AUTO_MOD_URL=http://auto-mod:8700
     volumes:
       - ./services/discord-bot:/app
       - /app/node_modules
@@ -291,6 +293,7 @@ services:
       - redis
       - core-app
       - ai-personality
+      - auto-mod
     restart: unless-stopped
 
   # Twitch Bot (TypeScript)
@@ -307,6 +310,8 @@ services:
       - REDIS_URL=redis://redis:6379
       - WAVESTACK_API_URL=http://core-app:3000
       - AI_PERSONALITY_URL=http://ai-personality:8200
+      - USE_AI_MODERATION=${USE_AI_MODERATION:-true}
+      - AUTO_MOD_URL=http://auto-mod:8700
     volumes:
       - ./services/twitch-bot:/app
       - /app/node_modules
@@ -315,6 +320,7 @@ services:
       - redis
       - core-app
       - ai-personality
+      - auto-mod
     restart: unless-stopped
 
   # Telegram Bot (TypeScript)
