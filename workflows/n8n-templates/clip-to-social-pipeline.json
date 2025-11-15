@@ -1,0 +1,252 @@
+{
+  "name": "Clip to Social Media Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "clip-created",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-clip-trigger",
+      "name": "Webhook - Clip Created",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "clip-created-webhook"
+    },
+    {
+      "parameters": {
+        "url": "http://clipper:8000/api/v1/clips/{{$json.clip_id}}",
+        "authentication": "none",
+        "requestMethod": "GET",
+        "options": {}
+      },
+      "id": "get-clip-data",
+      "name": "Get Clip from Clipper",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://thumbnail-generator:8400/api/v1/thumbnails/generate",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "video_path",
+              "value": "={{$json.video_path}}"
+            },
+            {
+              "name": "title",
+              "value": "={{$json.title}}"
+            },
+            {
+              "name": "style",
+              "value": "gaming"
+            },
+            {
+              "name": "use_ai",
+              "value": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "generate-thumbnail",
+      "name": "Generate AI Thumbnail",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://ai-personality:8200/api/v1/personality/enhance",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "={{$json.title}}"
+            },
+            {
+              "name": "platform",
+              "value": "multi"
+            },
+            {
+              "name": "tone",
+              "value": "engaging"
+            },
+            {
+              "name": "max_length",
+              "value": 280
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "enhance-caption",
+      "name": "AI Enhance Caption",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://ai-personality:8200/api/v1/personality/generate-hashtags",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "content",
+              "value": "={{$json.enhanced_text}}"
+            },
+            {
+              "name": "platform",
+              "value": "multi"
+            },
+            {
+              "name": "count",
+              "value": 10
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "generate-hashtags",
+      "name": "Generate Hashtags",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://youtube-publisher:8500/api/v1/youtube/upload",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "video_path",
+              "value": "={{$json.video_path}}"
+            },
+            {
+              "name": "title",
+              "value": "={{$json.enhanced_text}}"
+            },
+            {
+              "name": "description",
+              "value": "={{$json.enhanced_text}} {{$json.hashtags.join(' ')}}"
+            },
+            {
+              "name": "thumbnail_path",
+              "value": "={{$json.thumbnail_path}}"
+            },
+            {
+              "name": "privacy",
+              "value": "public"
+            },
+            {
+              "name": "category",
+              "value": "20"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "publish-youtube",
+      "name": "Publish to YouTube",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1250, 200]
+    },
+    {
+      "parameters": {
+        "url": "http://social-publisher:8600/api/v1/publish/multi-platform",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "platforms",
+              "value": "instagram,tiktok,facebook,linkedin"
+            },
+            {
+              "name": "caption",
+              "value": "={{$json.enhanced_text}} {{$json.hashtags.join(' ')}}"
+            },
+            {
+              "name": "media_type",
+              "value": "video"
+            },
+            {
+              "name": "media_path",
+              "value": "={{$json.video_path}}"
+            },
+            {
+              "name": "thumbnail_path",
+              "value": "={{$json.thumbnail_path}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "publish-social",
+      "name": "Publish to Social Media",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1250, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, message: 'Clip published to all platforms', youtube: $node['Publish to YouTube'].json, social: $node['Publish to Social Media'].json } }}"
+      },
+      "id": "webhook-response",
+      "name": "Send Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1450, 300]
+    }
+  ],
+  "connections": {
+    "Webhook - Clip Created": {
+      "main": [[{ "node": "Get Clip from Clipper", "type": "main", "index": 0 }]]
+    },
+    "Get Clip from Clipper": {
+      "main": [[{ "node": "Generate AI Thumbnail", "type": "main", "index": 0 }]]
+    },
+    "Generate AI Thumbnail": {
+      "main": [[{ "node": "AI Enhance Caption", "type": "main", "index": 0 }]]
+    },
+    "AI Enhance Caption": {
+      "main": [[{ "node": "Generate Hashtags", "type": "main", "index": 0 }]]
+    },
+    "Generate Hashtags": {
+      "main": [
+        [
+          { "node": "Publish to YouTube", "type": "main", "index": 0 },
+          { "node": "Publish to Social Media", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Publish to YouTube": {
+      "main": [[{ "node": "Send Response", "type": "main", "index": 0 }]]
+    },
+    "Publish to Social Media": {
+      "main": [[{ "node": "Send Response", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-01-15T00:00:00.000Z",
+  "versionId": "1"
+}

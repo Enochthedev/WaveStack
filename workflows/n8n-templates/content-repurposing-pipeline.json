@@ -1,0 +1,327 @@
+{
+  "name": "Content Repurposing Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "repurpose-content",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-upload",
+      "name": "Webhook - New Content",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 400],
+      "webhookId": "repurpose-content-webhook"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Define clip durations and formats for different platforms\nconst videoPath = $json.video_path;\nconst title = $json.title;\nconst description = $json.description;\n\nconst formats = [\n  { name: 'youtube_shorts', duration: 60, aspect_ratio: '9:16', platform: 'youtube_shorts' },\n  { name: 'tiktok', duration: 60, aspect_ratio: '9:16', platform: 'tiktok' },\n  { name: 'instagram_reels', duration: 90, aspect_ratio: '9:16', platform: 'instagram' },\n  { name: 'instagram_story', duration: 15, aspect_ratio: '9:16', platform: 'instagram' },\n  { name: 'youtube_highlight', duration: 180, aspect_ratio: '16:9', platform: 'youtube' },\n  { name: 'facebook_video', duration: 120, aspect_ratio: '1:1', platform: 'facebook' },\n  { name: 'linkedin_video', duration: 90, aspect_ratio: '16:9', platform: 'linkedin' }\n];\n\nreturn formats.map(format => ({\n  json: {\n    original_video: videoPath,\n    title,\n    description,\n    ...format\n  }\n}));"
+      },
+      "id": "define-formats",
+      "name": "Define Output Formats",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 400]
+    },
+    {
+      "parameters": {
+        "url": "http://clipper:8000/api/v1/clips/extract",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "video_path",
+              "value": "={{$json.original_video}}"
+            },
+            {
+              "name": "duration",
+              "value": "={{$json.duration}}"
+            },
+            {
+              "name": "aspect_ratio",
+              "value": "={{$json.aspect_ratio}}"
+            },
+            {
+              "name": "use_ai_selection",
+              "value": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "extract-clips",
+      "name": "Extract Clips",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [650, 400]
+    },
+    {
+      "parameters": {
+        "url": "http://ai-personality:8200/api/v1/personality/generate-caption",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "title",
+              "value": "={{$json.title}}"
+            },
+            {
+              "name": "description",
+              "value": "={{$json.description}}"
+            },
+            {
+              "name": "platform",
+              "value": "={{$json.platform}}"
+            },
+            {
+              "name": "format",
+              "value": "={{$json.name}}"
+            },
+            {
+              "name": "tone",
+              "value": "engaging"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "generate-captions",
+      "name": "Generate Platform Captions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [850, 400]
+    },
+    {
+      "parameters": {
+        "url": "http://thumbnail-generator:8400/api/v1/thumbnails/generate-variants",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "video_path",
+              "value": "={{$json.clip_path}}"
+            },
+            {
+              "name": "title",
+              "value": "={{$json.title}}"
+            },
+            {
+              "name": "format",
+              "value": "={{$json.aspect_ratio === '9:16' ? 'vertical' : $json.aspect_ratio === '1:1' ? 'square' : 'horizontal'}}"
+            },
+            {
+              "name": "variants",
+              "value": 3
+            },
+            {
+              "name": "use_ai",
+              "value": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "generate-thumbnails",
+      "name": "Generate Thumbnail Variants",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1050, 400]
+    },
+    {
+      "parameters": {
+        "url": "http://ai-personality:8200/api/v1/personality/generate-hashtags",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "content",
+              "value": "={{$json.generated_caption}}"
+            },
+            {
+              "name": "platform",
+              "value": "={{$json.platform}}"
+            },
+            {
+              "name": "count",
+              "value": "={{$json.platform === 'instagram' ? 30 : $json.platform === 'tiktok' ? 5 : 10}}"
+            },
+            {
+              "name": "trending",
+              "value": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "generate-hashtags",
+      "name": "Generate Hashtags",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1250, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.platform}}",
+              "operation": "equals",
+              "value2": "youtube_shorts"
+            },
+            {
+              "value1": "={{$json.platform}}",
+              "operation": "equals",
+              "value2": "youtube"
+            }
+          ]
+        },
+        "combineOperation": "any"
+      },
+      "id": "is-youtube",
+      "name": "Is YouTube?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1450, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://youtube-publisher:8500/api/v1/youtube/upload",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "video_path",
+              "value": "={{$json.clip_path}}"
+            },
+            {
+              "name": "title",
+              "value": "={{$json.generated_caption}}"
+            },
+            {
+              "name": "description",
+              "value": "={{$json.generated_caption}}\\n\\n{{$json.hashtags.join(' ')}}"
+            },
+            {
+              "name": "thumbnail_path",
+              "value": "={{$json.thumbnail_variants[0]}}"
+            },
+            {
+              "name": "privacy",
+              "value": "public"
+            },
+            {
+              "name": "is_short",
+              "value": "={{$json.name === 'youtube_shorts'}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "publish-youtube",
+      "name": "Publish to YouTube",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1650, 200]
+    },
+    {
+      "parameters": {
+        "url": "http://social-publisher:8600/api/v1/publish/{{$json.platform}}",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "video_path",
+              "value": "={{$json.clip_path}}"
+            },
+            {
+              "name": "caption",
+              "value": "={{$json.generated_caption}}\\n\\n{{$json.hashtags.join(' ')}}"
+            },
+            {
+              "name": "thumbnail_path",
+              "value": "={{$json.thumbnail_variants[0]}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "publish-social",
+      "name": "Publish to Social Media",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1650, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Aggregate all publishing results\nconst allResults = $input.all();\n\nconst summary = {\n  total: allResults.length,\n  successful: allResults.filter(r => r.json.success).length,\n  failed: allResults.filter(r => !r.json.success).length,\n  platforms: allResults.map(r => ({\n    platform: r.json.platform,\n    format: r.json.format,\n    success: r.json.success,\n    url: r.json.url\n  }))\n};\n\nreturn [{ json: summary }];"
+      },
+      "id": "aggregate-results",
+      "name": "Aggregate Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1850, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, message: 'Content repurposed successfully', summary: $json } }}"
+      },
+      "id": "webhook-response",
+      "name": "Send Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2050, 300]
+    }
+  ],
+  "connections": {
+    "Webhook - New Content": {
+      "main": [[{ "node": "Define Output Formats", "type": "main", "index": 0 }]]
+    },
+    "Define Output Formats": {
+      "main": [[{ "node": "Extract Clips", "type": "main", "index": 0 }]]
+    },
+    "Extract Clips": {
+      "main": [[{ "node": "Generate Platform Captions", "type": "main", "index": 0 }]]
+    },
+    "Generate Platform Captions": {
+      "main": [[{ "node": "Generate Thumbnail Variants", "type": "main", "index": 0 }]]
+    },
+    "Generate Thumbnail Variants": {
+      "main": [[{ "node": "Generate Hashtags", "type": "main", "index": 0 }]]
+    },
+    "Generate Hashtags": {
+      "main": [[{ "node": "Is YouTube?", "type": "main", "index": 0 }]]
+    },
+    "Is YouTube?": {
+      "main": [
+        [{ "node": "Publish to YouTube", "type": "main", "index": 0 }],
+        [{ "node": "Publish to Social Media", "type": "main", "index": 0 }]
+      ]
+    },
+    "Publish to YouTube": {
+      "main": [[{ "node": "Aggregate Results", "type": "main", "index": 0 }]]
+    },
+    "Publish to Social Media": {
+      "main": [[{ "node": "Aggregate Results", "type": "main", "index": 0 }]]
+    },
+    "Aggregate Results": {
+      "main": [[{ "node": "Send Response", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-01-15T00:00:00.000Z",
+  "versionId": "1"
+}

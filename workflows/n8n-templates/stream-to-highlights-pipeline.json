@@ -1,0 +1,245 @@
+{
+  "name": "Stream to Highlights Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 23,
+              "triggerAtMinute": 30
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule - After Stream",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://clipper:8000/api/v1/streams/latest",
+        "authentication": "none",
+        "requestMethod": "GET",
+        "options": {}
+      },
+      "id": "get-stream-info",
+      "name": "Get Latest Stream",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://clipper:8000/api/v1/clips/auto-create",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "stream_id",
+              "value": "={{$json.stream_id}}"
+            },
+            {
+              "name": "platform",
+              "value": "={{$json.platform}}"
+            },
+            {
+              "name": "min_duration",
+              "value": 30
+            },
+            {
+              "name": "max_duration",
+              "value": 90
+            },
+            {
+              "name": "count",
+              "value": 5
+            },
+            {
+              "name": "use_ai_detection",
+              "value": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "create-clips",
+      "name": "Auto-Create Clips",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://ai-personality:8200/api/v1/personality/analyze-engagement",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "clips",
+              "value": "={{$json.clips}}"
+            },
+            {
+              "name": "min_score",
+              "value": 0.7
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ai-analyze",
+      "name": "AI Analyze Clips",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Filter clips by AI engagement score\nconst minScore = 0.7;\nconst topClips = $input.all()[0].json.analyzed_clips\n  .filter(clip => clip.engagement_score >= minScore)\n  .sort((a, b) => b.engagement_score - a.engagement_score)\n  .slice(0, 3);\n\nreturn topClips.map(clip => ({ json: clip }));"
+      },
+      "id": "filter-top-clips",
+      "name": "Filter Top Clips",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://thumbnail-generator:8400/api/v1/thumbnails/generate",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "video_path",
+              "value": "={{$json.video_path}}"
+            },
+            {
+              "name": "title",
+              "value": "={{$json.title}}"
+            },
+            {
+              "name": "style",
+              "value": "gaming"
+            },
+            {
+              "name": "use_ai",
+              "value": true
+            },
+            {
+              "name": "format",
+              "value": "vertical"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "generate-thumbnails",
+      "name": "Generate Thumbnails",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://ai-personality:8200/api/v1/personality/generate-title",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "content",
+              "value": "={{$json.description}}"
+            },
+            {
+              "name": "platform",
+              "value": "youtube_shorts"
+            },
+            {
+              "name": "max_length",
+              "value": 100
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "generate-titles",
+      "name": "Generate Titles",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1450, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://social-publisher:8600/api/v1/publish/shorts",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "platforms",
+              "value": "youtube_shorts,tiktok,instagram_reels"
+            },
+            {
+              "name": "video_path",
+              "value": "={{$json.video_path}}"
+            },
+            {
+              "name": "title",
+              "value": "={{$json.generated_title}}"
+            },
+            {
+              "name": "description",
+              "value": "={{$json.description}}"
+            },
+            {
+              "name": "thumbnail_path",
+              "value": "={{$json.thumbnail_path}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "publish-highlights",
+      "name": "Publish Highlights",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1650, 300]
+    }
+  ],
+  "connections": {
+    "Schedule - After Stream": {
+      "main": [[{ "node": "Get Latest Stream", "type": "main", "index": 0 }]]
+    },
+    "Get Latest Stream": {
+      "main": [[{ "node": "Auto-Create Clips", "type": "main", "index": 0 }]]
+    },
+    "Auto-Create Clips": {
+      "main": [[{ "node": "AI Analyze Clips", "type": "main", "index": 0 }]]
+    },
+    "AI Analyze Clips": {
+      "main": [[{ "node": "Filter Top Clips", "type": "main", "index": 0 }]]
+    },
+    "Filter Top Clips": {
+      "main": [[{ "node": "Generate Thumbnails", "type": "main", "index": 0 }]]
+    },
+    "Generate Thumbnails": {
+      "main": [[{ "node": "Generate Titles", "type": "main", "index": 0 }]]
+    },
+    "Generate Titles": {
+      "main": [[{ "node": "Publish Highlights", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-01-15T00:00:00.000Z",
+  "versionId": "1"
+}
