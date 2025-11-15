@@ -1,0 +1,31 @@
+# Web Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# Database
+prisma==0.11.0
+
+# Redis
+redis==5.0.1
+
+# NLP and Toxicity Detection
+transformers==4.37.0
+torch==2.1.2
+detoxify==0.5.2
+
+# Spam Detection
+scikit-learn==1.4.0
+numpy==1.26.3
+
+# URL/Link Analysis
+tldextract==5.1.1
+validators==0.22.0
+
+# Utilities
+httpx==0.26.0
+python-dotenv==1.0.0
+
+# Logging
+pino-python==0.1.0

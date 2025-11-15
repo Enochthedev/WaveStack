@@ -175,6 +175,32 @@ services:
       - thumbnail-generator
     restart: unless-stopped
 
+  # Auto-Moderation Service (Python/FastAPI)
+  auto-mod:
+    build:
+      context: ./services/auto-mod
+      dockerfile: Dockerfile
+    ports:
+      - "8700:8700"
+    environment:
+      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
+      - REDIS_URL=redis://redis:6379
+      - AI_PERSONALITY_URL=http://ai-personality:8200
+      - USE_AI_MODERATION=true
+      - TOXICITY_THRESHOLD=${TOXICITY_THRESHOLD:-0.7}
+      - SPAM_THRESHOLD=${SPAM_THRESHOLD:-0.6}
+      - AUTO_DELETE=${AUTO_DELETE:-true}
+      - AUTO_TIMEOUT=${AUTO_TIMEOUT:-false}
+      - AUTO_BAN=${AUTO_BAN:-false}
+      - VIOLATIONS_FOR_BAN=${VIOLATIONS_FOR_BAN:-5}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ./services/auto-mod:/app
+    depends_on:
+      - redis
+      - ai-personality
+    restart: unless-stopped
+
   # Core App (Fastify/TypeScript)
   core-app:
     build:
