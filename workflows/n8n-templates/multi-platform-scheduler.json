@@ -1,0 +1,280 @@
+{
+  "name": "Multi-Platform Content Scheduler",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "schedule-content",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-upload",
+      "name": "Webhook - Upload Content",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "schedule-content-webhook"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract content metadata\nconst content = $input.all()[0].json;\n\nreturn [{\n  json: {\n    video_path: content.video_path,\n    title: content.title,\n    description: content.description,\n    platforms: content.platforms || ['youtube', 'instagram', 'tiktok', 'facebook', 'linkedin'],\n    schedule_times: content.schedule_times || {\n      youtube: '14:00',\n      instagram: '18:00',\n      tiktok: '19:00',\n      facebook: '12:00',\n      linkedin: '09:00'\n    }\n  }\n}];"
+      },
+      "id": "extract-metadata",
+      "name": "Extract Metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://ai-personality:8200/api/v1/personality/optimize-per-platform",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "title",
+              "value": "={{$json.title}}"
+            },
+            {
+              "name": "description",
+              "value": "={{$json.description}}"
+            },
+            {
+              "name": "platforms",
+              "value": "={{$json.platforms}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "optimize-content",
+      "name": "AI Optimize Per Platform",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Format video for each platform\nconst platforms = $json.platforms;\nconst videoPath = $json.video_path;\nconst optimized = $json.platform_content;\n\nconst tasks = platforms.map(platform => ({\n  platform,\n  video_path: videoPath,\n  content: optimized[platform],\n  format: platform === 'tiktok' || platform === 'instagram' ? '9:16' : '16:9',\n  max_duration: platform === 'tiktok' ? 60 : platform === 'instagram' ? 90 : 0\n}));\n\nreturn tasks.map(task => ({ json: task }));"
+      },
+      "id": "prepare-formats",
+      "name": "Prepare Platform Formats",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://thumbnail-generator:8400/api/v1/thumbnails/generate",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "video_path",
+              "value": "={{$json.video_path}}"
+            },
+            {
+              "name": "title",
+              "value": "={{$json.content.title}}"
+            },
+            {
+              "name": "style",
+              "value": "={{$json.platform === 'youtube' ? 'gaming' : 'minimal'}}"
+            },
+            {
+              "name": "format",
+              "value": "={{$json.format === '9:16' ? 'vertical' : 'horizontal'}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "generate-thumbnails",
+      "name": "Generate Thumbnails",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "mode": "jsonToBinary",
+        "options": {}
+      },
+      "id": "convert-to-binary",
+      "name": "Convert to Binary",
+      "type": "n8n-nodes-base.moveBinaryData",
+      "typeVersion": 1,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "={{`queue:${$json.platform}:${Date.now()}`}}",
+        "value": "={{JSON.stringify($json)}}",
+        "expire": true,
+        "ttl": 86400
+      },
+      "id": "queue-to-redis",
+      "name": "Add to Redis Queue",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [1450, 300],
+      "credentials": {
+        "redis": {
+          "id": "1",
+          "name": "Redis - WaveStack"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": "*",
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "hourly-processor",
+      "name": "Hourly - Process Queue",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 600]
+    },
+    {
+      "parameters": {
+        "operation": "keys",
+        "key": "queue:*"
+      },
+      "id": "get-queued-items",
+      "name": "Get Queued Items",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [450, 600],
+      "credentials": {
+        "redis": {
+          "id": "1",
+          "name": "Redis - WaveStack"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Filter items scheduled for current hour\nconst currentHour = new Date().getHours();\nconst keys = $input.all()[0].json;\n\nconst scheduledNow = [];\nfor (const key of keys) {\n  const data = JSON.parse(await $redis.get(key));\n  const scheduleHour = parseInt(data.schedule_times[data.platform].split(':')[0]);\n  \n  if (scheduleHour === currentHour) {\n    scheduledNow.push({ json: { ...data, redis_key: key } });\n  }\n}\n\nreturn scheduledNow;"
+      },
+      "id": "filter-scheduled",
+      "name": "Filter Scheduled Items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 600]
+    },
+    {
+      "parameters": {
+        "url": "={{$json.platform === 'youtube' ? 'http://youtube-publisher:8500/api/v1/youtube/upload' : 'http://social-publisher:8600/api/v1/publish/' + $json.platform}}",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "video_path",
+              "value": "={{$json.video_path}}"
+            },
+            {
+              "name": "title",
+              "value": "={{$json.content.title}}"
+            },
+            {
+              "name": "description",
+              "value": "={{$json.content.description}}"
+            },
+            {
+              "name": "thumbnail_path",
+              "value": "={{$json.thumbnail_path}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "publish-content",
+      "name": "Publish Content",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [850, 600]
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "key": "={{$json.redis_key}}"
+      },
+      "id": "remove-from-queue",
+      "name": "Remove from Queue",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [1050, 600],
+      "credentials": {
+        "redis": {
+          "id": "1",
+          "name": "Redis - WaveStack"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, message: 'Content queued for publishing', platforms: $json.platforms, queue_count: $json.platforms.length } }}"
+      },
+      "id": "webhook-response",
+      "name": "Send Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1650, 300]
+    }
+  ],
+  "connections": {
+    "Webhook - Upload Content": {
+      "main": [[{ "node": "Extract Metadata", "type": "main", "index": 0 }]]
+    },
+    "Extract Metadata": {
+      "main": [[{ "node": "AI Optimize Per Platform", "type": "main", "index": 0 }]]
+    },
+    "AI Optimize Per Platform": {
+      "main": [[{ "node": "Prepare Platform Formats", "type": "main", "index": 0 }]]
+    },
+    "Prepare Platform Formats": {
+      "main": [[{ "node": "Generate Thumbnails", "type": "main", "index": 0 }]]
+    },
+    "Generate Thumbnails": {
+      "main": [[{ "node": "Convert to Binary", "type": "main", "index": 0 }]]
+    },
+    "Convert to Binary": {
+      "main": [[{ "node": "Add to Redis Queue", "type": "main", "index": 0 }]]
+    },
+    "Add to Redis Queue": {
+      "main": [[{ "node": "Send Response", "type": "main", "index": 0 }]]
+    },
+    "Hourly - Process Queue": {
+      "main": [[{ "node": "Get Queued Items", "type": "main", "index": 0 }]]
+    },
+    "Get Queued Items": {
+      "main": [[{ "node": "Filter Scheduled Items", "type": "main", "index": 0 }]]
+    },
+    "Filter Scheduled Items": {
+      "main": [[{ "node": "Publish Content", "type": "main", "index": 0 }]]
+    },
+    "Publish Content": {
+      "main": [[{ "node": "Remove from Queue", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-01-15T00:00:00.000Z",
+  "versionId": "1"
+}

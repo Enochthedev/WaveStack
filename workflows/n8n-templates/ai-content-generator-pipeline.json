@@ -1,0 +1,291 @@
+{
+  "name": "AI Content Generator Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "daily-schedule",
+      "name": "Daily Schedule - 9 AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://ai-personality:8200/api/v1/personality/generate-content-idea",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "topics",
+              "value": ["gaming", "streaming", "tech", "entertainment"]
+            },
+            {
+              "name": "tone",
+              "value": "entertaining"
+            },
+            {
+              "name": "platform",
+              "value": "multi"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "generate-idea",
+      "name": "Generate Content Idea",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://thumbnail-generator:8400/api/v1/thumbnails/generate-from-prompt",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "prompt",
+              "value": "={{$json.visual_description}}"
+            },
+            {
+              "name": "title",
+              "value": "={{$json.title}}"
+            },
+            {
+              "name": "style",
+              "value": "vibrant"
+            },
+            {
+              "name": "provider",
+              "value": "stability"
+            },
+            {
+              "name": "width",
+              "value": 1080
+            },
+            {
+              "name": "height",
+              "value": 1080
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "generate-image",
+      "name": "Generate AI Image",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://ai-personality:8200/api/v1/personality/write-post",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "topic",
+              "value": "={{$json.title}}"
+            },
+            {
+              "name": "context",
+              "value": "={{$json.content}}"
+            },
+            {
+              "name": "platform",
+              "value": "instagram"
+            },
+            {
+              "name": "max_length",
+              "value": 2200
+            },
+            {
+              "name": "include_cta",
+              "value": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "write-caption",
+      "name": "Write Caption",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://ai-personality:8200/api/v1/personality/generate-hashtags",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "content",
+              "value": "={{$json.caption}}"
+            },
+            {
+              "name": "platform",
+              "value": "instagram"
+            },
+            {
+              "name": "count",
+              "value": 30
+            },
+            {
+              "name": "trending",
+              "value": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "generate-hashtags",
+      "name": "Generate Hashtags",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://social-publisher:8600/api/v1/publish/instagram",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "image_path",
+              "value": "={{$json.image_path}}"
+            },
+            {
+              "name": "caption",
+              "value": "={{$json.caption}}\\n\\n{{$json.hashtags.join(' ')}}"
+            },
+            {
+              "name": "use_ai_caption",
+              "value": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "publish-instagram",
+      "name": "Publish to Instagram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1250, 200]
+    },
+    {
+      "parameters": {
+        "url": "http://social-publisher:8600/api/v1/publish/facebook",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "image_path",
+              "value": "={{$json.image_path}}"
+            },
+            {
+              "name": "message",
+              "value": "={{$json.caption}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "publish-facebook",
+      "name": "Publish to Facebook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1250, 320]
+    },
+    {
+      "parameters": {
+        "url": "http://social-publisher:8600/api/v1/publish/linkedin",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "image_path",
+              "value": "={{$json.image_path}}"
+            },
+            {
+              "name": "text",
+              "value": "={{$json.caption}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "publish-linkedin",
+      "name": "Publish to LinkedIn",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1250, 440]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Log successful publications\nconst results = {\n  idea: $node['Generate Content Idea'].json,\n  image: $node['Generate AI Image'].json.image_path,\n  platforms: {\n    instagram: $node['Publish to Instagram'].json,\n    facebook: $node['Publish to Facebook'].json,\n    linkedin: $node['Publish to LinkedIn'].json\n  },\n  timestamp: new Date().toISOString()\n};\n\nreturn [{ json: results }];"
+      },
+      "id": "log-results",
+      "name": "Log Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1450, 300]
+    }
+  ],
+  "connections": {
+    "Daily Schedule - 9 AM": {
+      "main": [[{ "node": "Generate Content Idea", "type": "main", "index": 0 }]]
+    },
+    "Generate Content Idea": {
+      "main": [[{ "node": "Generate AI Image", "type": "main", "index": 0 }]]
+    },
+    "Generate AI Image": {
+      "main": [[{ "node": "Write Caption", "type": "main", "index": 0 }]]
+    },
+    "Write Caption": {
+      "main": [[{ "node": "Generate Hashtags", "type": "main", "index": 0 }]]
+    },
+    "Generate Hashtags": {
+      "main": [
+        [
+          { "node": "Publish to Instagram", "type": "main", "index": 0 },
+          { "node": "Publish to Facebook", "type": "main", "index": 0 },
+          { "node": "Publish to LinkedIn", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Publish to Instagram": {
+      "main": [[{ "node": "Log Results", "type": "main", "index": 0 }]]
+    },
+    "Publish to Facebook": {
+      "main": [[{ "node": "Log Results", "type": "main", "index": 0 }]]
+    },
+    "Publish to LinkedIn": {
+      "main": [[{ "node": "Log Results", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-01-15T00:00:00.000Z",
+  "versionId": "1"
+}

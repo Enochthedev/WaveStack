@@ -1,0 +1,34 @@
+# Web Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
+python-multipart==0.0.6
+
+# Machine Learning
+torch==2.1.2
+transformers==4.37.0
+accelerate==0.26.1
+peft==0.7.1  # Parameter-Efficient Fine-Tuning (LoRA/QLoRA)
+bitsandbytes==0.42.0  # 8-bit/4-bit quantization
+datasets==2.16.1
+evaluate==0.4.1
+scipy==1.11.4
+
+# Database
+prisma==0.11.0
+
+# Redis
+redis==5.0.1
+
+# Utilities
+httpx==0.26.0
+pydantic-settings==2.1.0
+python-dotenv==1.0.0
+
+# Monitoring
+pino-python==0.1.0
+tensorboard==2.15.1  # Training metrics visualization
+
+# Storage
+huggingface-hub==0.20.2

@@ -1,0 +1,24 @@
+{
+  "name": "@wavestack/telegram-bot",
+  "version": "1.0.0",
+  "description": "Professional Telegram bot for WaveStack",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "telegraf": "^4.15.0",
+    "axios": "^1.6.0",
+    "dotenv": "^16.3.1",
+    "pino": "^8.17.0",
+    "redis": "^4.6.0",
+    "dayjs": "^1.11.10"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.0"
+  }
+}

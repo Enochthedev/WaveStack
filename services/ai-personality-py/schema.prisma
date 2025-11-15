@@ -1,0 +1,185 @@
+// AI Personality Database Schema
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User personality profile
+model PersonalityProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique // Creator's user ID
+  name            String
+  platform        String   // Primary platform
+
+  // Personality traits (learned over time)
+  traits          Json     @default("{}") // humor, formality, emoji usage, etc.
+  writingStyle    Json     @default("{}") // sentence length, vocabulary, etc.
+  topics          Json     @default("{}") // interests and expertise
+  catchphrases    String[] @default([])
+  emojiPreference String[] @default([])
+
+  // Voice characteristics
+  tone            String?  // casual, professional, funny, etc.
+  vocabulary      String[] @default([]) // Common words/phrases
+  responseLength  String   @default("medium") // short, medium, long
+
+  // Boundaries and preferences
+  controversyLevel Int     @default(3) // 1-10 scale
+  allowedTopics    String[] @default([])
+  avoidedTopics    String[] @default([])
+
+  // Training metadata
+  messagesSeen    Int      @default(0)
+  lastTrainedAt   DateTime?
+  confidence      Float    @default(0.0) // 0-1, how confident the AI is
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("personality_profiles")
+}
+
+// Conversation history for context
+model Conversation {
+  id              String   @id @default(cuid())
+  userId          String
+  platform        String   // discord, twitch, telegram, etc.
+  platformUserId  String   // User who sent the message
+  platformUsername String?
+
+  role            String   // user, assistant, system
+  content         String   @db.Text
+  messageType     String   @default("text") // text, command, reaction
+
+  // Context
+  channelId       String?
+  threadId        String?
+  replyToId       String?
+
+  // AI metadata
+  wasAIGenerated  Boolean  @default(false)
+  model           String?  // Which AI model generated this
+  confidence      Float?   // How confident the AI was
+
+  embedding       String?  // Vector embedding (stored separately in ChromaDB)
+
+  createdAt       DateTime @default(now())
+
+  @@index([userId, platform, createdAt])
+  @@index([platformUserId, createdAt])
+  @@map("conversations")
+}
+
+// Long-term memories (important facts about the creator)
+model Memory {
+  id              String   @id @default(cuid())
+  userId          String
+  memoryType      String   // fact, preference, event, relationship
+
+  content         String   @db.Text
+  importance      Int      @default(5) // 1-10 scale
+  confidence      Float    @default(1.0) // 0-1
+
+  // Source tracking
+  source          String   // Where this memory came from
+  sourceId        String?  // Message/event ID
+  learnedAt       DateTime @default(now())
+
+  // Memory metadata
+  tags            String[] @default([])
+  relatedMemories String[] @default([]) // IDs of related memories
+
+  lastAccessedAt  DateTime @default(now())
+  accessCount     Int      @default(0)
+
+  expiresAt       DateTime? // Some memories can expire
+
+  @@index([userId, importance])
+  @@index([userId, memoryType])
+  @@map("memories")
+}
+
+// Training data from various sources
+model TrainingData {
+  id              String   @id @default(cuid())
+  userId          String
+  platform        String
+  dataType        String   // message, stream_transcript, tweet, etc.
+
+  content         String   @db.Text
+  metadata        Json     @default("{}")
+
+  isProcessed     Boolean  @default(false)
+  processedAt     DateTime?
+
+  createdAt       DateTime @default(now())
+
+  @@index([userId, isProcessed])
+  @@index([platform, createdAt])
+  @@map("training_data")
+}
+
+// Generated content (for Twitter, etc.)
+model GeneratedContent {
+  id              String   @id @default(cuid())
+  userId          String
+  platform        String   // twitter, instagram, tiktok, etc.
+  contentType     String   // tweet, post, caption, etc.
+
+  prompt          String   @db.Text
+  generatedText   String   @db.Text
+
+  // AI metadata
+  model           String
+  temperature     Float
+  tokens          Int?
+
+  // Status
+  status          String   @default("draft") // draft, scheduled, posted, rejected
+  scheduledFor    DateTime?
+  postedAt        DateTime?
+  postId          String?  // ID on the platform
+
+  // Analytics
+  impressions     Int?
+  engagement      Int?
+  sentiment       Float?   // -1 to 1
+
+  // Human review
+  reviewed        Boolean  @default(false)
+  approved        Boolean  @default(false)
+  feedback        String?  @db.Text
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([platform, scheduledFor])
+  @@map("generated_content")
+}
+
+// Sentiment and engagement analytics
+model EngagementMetrics {
+  id              String   @id @default(cuid())
+  userId          String
+  platform        String
+  contentId       String   // Post/message ID
+
+  impressions     Int      @default(0)
+  likes           Int      @default(0)
+  comments        Int      @default(0)
+  shares          Int      @default(0)
+  clicks          Int      @default(0)
+
+  sentiment       Float?   // -1 to 1
+  engagementRate  Float?   // calculated
+
+  createdAt       DateTime @default(now())
+
+  @@index([userId, platform, createdAt])
+  @@map("engagement_metrics")
+}
