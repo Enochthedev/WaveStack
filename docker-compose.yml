@@ -430,6 +430,126 @@ services:
       - core-app
     restart: unless-stopped
 
+  # Analytics Dashboard (Python/FastAPI)
+  analytics-dashboard:
+    build:
+      context: ./services/analytics-dashboard
+      dockerfile: Dockerfile
+    ports:
+      - "8800:8800"
+    environment:
+      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
+      - REDIS_URL=redis://redis:6379
+      - YOUTUBE_PUBLISHER_URL=http://youtube-publisher:8500
+      - SOCIAL_PUBLISHER_URL=http://social-publisher:8600
+      - AI_PERSONALITY_URL=http://ai-personality:8200
+      - CLIPPER_URL=http://clipper:8000
+      - AUTO_MOD_URL=http://auto-mod:8700
+      - METRICS_RETENTION_DAYS=${METRICS_RETENTION_DAYS:-90}
+      - CACHE_TTL_SECONDS=${CACHE_TTL_SECONDS:-300}
+    volumes:
+      - ./services/analytics-dashboard:/app
+    depends_on:
+      - redis
+      - postgres
+    restart: unless-stopped
+
+  # SEO Optimizer (Python/FastAPI)
+  seo-optimizer:
+    build:
+      context: ./services/seo-optimizer
+      dockerfile: Dockerfile
+    ports:
+      - "9300:9300"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - AI_PERSONALITY_URL=http://ai-personality:8200
+      - YOUTUBE_PUBLISHER_URL=http://youtube-publisher:8500
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - AI_PROVIDER=${AI_PROVIDER:-openai}
+    volumes:
+      - ./services/seo-optimizer:/app
+    depends_on:
+      - redis
+      - ai-personality
+    restart: unless-stopped
+
+  # Live Stream Analytics (Python/FastAPI)
+  livestream-analytics:
+    build:
+      context: ./services/livestream-analytics
+      dockerfile: Dockerfile
+    ports:
+      - "9500:9500"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - TWITCH_CLIENT_ID=${TWITCH_CLIENT_ID}
+      - TWITCH_CLIENT_SECRET=${TWITCH_CLIENT_SECRET}
+      - YOUTUBE_API_KEY=${YOUTUBE_API_KEY}
+    volumes:
+      - ./services/livestream-analytics:/app
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  # Sponsor/Ad Manager (Python/FastAPI)
+  sponsor-manager:
+    build:
+      context: ./services/sponsor-manager
+      dockerfile: Dockerfile
+    ports:
+      - "8900:8900"
+    environment:
+      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
+      - REDIS_URL=redis://redis:6379
+      - STRIPE_API_KEY=${STRIPE_API_KEY}
+    volumes:
+      - ./services/sponsor-manager:/app
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
+  # Merchandise Integration (Python/FastAPI)
+  merch-integration:
+    build:
+      context: ./services/merch-integration
+      dockerfile: Dockerfile
+    ports:
+      - "9800:9800"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - PRINTFUL_API_KEY=${PRINTFUL_API_KEY}
+      - TEESPRING_API_KEY=${TEESPRING_API_KEY}
+      - SHOPIFY_API_KEY=${SHOPIFY_API_KEY}
+      - SHOPIFY_SHOP_URL=${SHOPIFY_SHOP_URL}
+    volumes:
+      - ./services/merch-integration:/app
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  # Email Marketing (Python/FastAPI)
+  email-marketing:
+    build:
+      context: ./services/email-marketing
+      dockerfile: Dockerfile
+    ports:
+      - "9200:9200"
+    environment:
+      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
+      - REDIS_URL=redis://redis:6379
+      - SENDGRID_API_KEY=${SENDGRID_API_KEY}
+      - MAILCHIMP_API_KEY=${MAILCHIMP_API_KEY}
+      - MAILCHIMP_SERVER=${MAILCHIMP_SERVER:-us1}
+    volumes:
+      - ./services/email-marketing:/app
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   redis_data:
