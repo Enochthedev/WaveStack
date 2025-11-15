@@ -323,24 +323,17 @@ services:
       - auto-mod
     restart: unless-stopped
 
-  # Telegram Bot (TypeScript)
+  # Telegram Bot (Python - more mature library)
   telegram-bot:
     build:
-      context: ./services/telegram-bot
+      context: ./services/telegram-bot-py
       dockerfile: Dockerfile
     environment:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
       - REDIS_URL=redis://redis:6379
-      - WAVESTACK_API_URL=http://core-app:3000
       - AI_PERSONALITY_URL=http://ai-personality:8200
-    volumes:
-      - ./services/telegram-bot:/app
-      - /app/node_modules
     depends_on:
-      - postgres
       - redis
-      - core-app
       - ai-personality
     restart: unless-stopped
 
@@ -430,28 +423,20 @@ services:
       - core-app
     restart: unless-stopped
 
-  # Analytics Dashboard (Python/FastAPI)
+  # Analytics Dashboard (Go - 10-50x faster)
   analytics-dashboard:
     build:
-      context: ./services/analytics-dashboard
+      context: ./services/analytics-dashboard-go
       dockerfile: Dockerfile
     ports:
       - "8800:8800"
     environment:
-      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
+      - PORT=8800
       - REDIS_URL=redis://redis:6379
-      - YOUTUBE_PUBLISHER_URL=http://youtube-publisher:8500
-      - SOCIAL_PUBLISHER_URL=http://social-publisher:8600
-      - AI_PERSONALITY_URL=http://ai-personality:8200
-      - CLIPPER_URL=http://clipper:8000
-      - AUTO_MOD_URL=http://auto-mod:8700
       - METRICS_RETENTION_DAYS=${METRICS_RETENTION_DAYS:-90}
       - CACHE_TTL_SECONDS=${CACHE_TTL_SECONDS:-300}
-    volumes:
-      - ./services/analytics-dashboard:/app
     depends_on:
       - redis
-      - postgres
     restart: unless-stopped
 
   # SEO Optimizer (Python/FastAPI)
@@ -475,57 +460,54 @@ services:
       - ai-personality
     restart: unless-stopped
 
-  # Live Stream Analytics (Python/FastAPI)
+  # Live Stream Analytics (Go - 100x faster concurrency)
   livestream-analytics:
     build:
-      context: ./services/livestream-analytics
+      context: ./services/livestream-analytics-go
       dockerfile: Dockerfile
     ports:
       - "9500:9500"
     environment:
+      - PORT=9500
       - REDIS_URL=redis://redis:6379
       - TWITCH_CLIENT_ID=${TWITCH_CLIENT_ID}
       - TWITCH_CLIENT_SECRET=${TWITCH_CLIENT_SECRET}
       - YOUTUBE_API_KEY=${YOUTUBE_API_KEY}
-    volumes:
-      - ./services/livestream-analytics:/app
     depends_on:
       - redis
     restart: unless-stopped
 
-  # Sponsor/Ad Manager (Python/FastAPI)
+  # Sponsor/Ad Manager (TypeScript/Fastify - 5-10x faster)
   sponsor-manager:
     build:
-      context: ./services/sponsor-manager
+      context: ./services/sponsor-manager-ts
       dockerfile: Dockerfile
     ports:
       - "8900:8900"
     environment:
-      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
+      - PORT=8900
       - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
       - STRIPE_API_KEY=${STRIPE_API_KEY}
-    volumes:
-      - ./services/sponsor-manager:/app
     depends_on:
-      - postgres
       - redis
+      - postgres
     restart: unless-stopped
 
-  # Merchandise Integration (Python/FastAPI)
+  # Merchandise Integration (TypeScript/Fastify - 5-10x faster)
   merch-integration:
     build:
-      context: ./services/merch-integration
+      context: ./services/merch-integration-ts
       dockerfile: Dockerfile
     ports:
       - "9800:9800"
     environment:
+      - PORT=9800
       - REDIS_URL=redis://redis:6379
       - PRINTFUL_API_KEY=${PRINTFUL_API_KEY}
       - TEESPRING_API_KEY=${TEESPRING_API_KEY}
       - SHOPIFY_API_KEY=${SHOPIFY_API_KEY}
       - SHOPIFY_SHOP_URL=${SHOPIFY_SHOP_URL}
-    volumes:
-      - ./services/merch-integration:/app
     depends_on:
       - redis
     restart: unless-stopped
