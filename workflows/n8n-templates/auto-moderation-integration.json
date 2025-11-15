@@ -1,0 +1,368 @@
+{
+  "name": "Auto-Moderation Integration",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "moderate-message",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-message",
+      "name": "Webhook - Message Event",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "moderate-message-webhook"
+    },
+    {
+      "parameters": {
+        "url": "http://auto-mod:8700/api/v1/moderate/check",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "={{$json.message}}"
+            },
+            {
+              "name": "user_id",
+              "value": "={{$json.user_id}}"
+            },
+            {
+              "name": "username",
+              "value": "={{$json.username}}"
+            },
+            {
+              "name": "platform",
+              "value": "={{$json.platform}}"
+            },
+            {
+              "name": "channel_id",
+              "value": "={{$json.channel_id}}"
+            },
+            {
+              "name": "user_roles",
+              "value": "={{$json.user_roles}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "moderate-message",
+      "name": "Check Moderation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.should_delete}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "should-delete",
+      "name": "Should Delete?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$json.platform === 'discord' ? 'http://discord-bot:3000/api/delete-message' : 'http://twitch-bot:3000/api/delete-message'}}",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "channel_id",
+              "value": "={{$json.channel_id}}"
+            },
+            {
+              "name": "message_id",
+              "value": "={{$json.message_id}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "delete-message",
+      "name": "Delete Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.should_timeout}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "should-timeout",
+      "name": "Should Timeout?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [850, 350]
+    },
+    {
+      "parameters": {
+        "url": "={{$json.platform === 'discord' ? 'http://discord-bot:3000/api/timeout-user' : 'http://twitch-bot:3000/api/timeout-user'}}",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "channel_id",
+              "value": "={{$json.channel_id}}"
+            },
+            {
+              "name": "user_id",
+              "value": "={{$json.user_id}}"
+            },
+            {
+              "name": "duration",
+              "value": "={{$json.timeout_duration}}"
+            },
+            {
+              "name": "reason",
+              "value": "={{$json.reason}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "timeout-user",
+      "name": "Timeout User",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1050, 350]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.should_ban}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "should-ban",
+      "name": "Should Ban?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [850, 500]
+    },
+    {
+      "parameters": {
+        "url": "={{$json.platform === 'discord' ? 'http://discord-bot:3000/api/ban-user' : 'http://twitch-bot:3000/api/ban-user'}}",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "channel_id",
+              "value": "={{$json.channel_id}}"
+            },
+            {
+              "name": "user_id",
+              "value": "={{$json.user_id}}"
+            },
+            {
+              "name": "reason",
+              "value": "={{$json.reason}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ban-user",
+      "name": "Ban User",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1050, 500]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{$json.scores.toxicity || $json.scores.spam || 0}}",
+              "operation": "largerEqual",
+              "value2": 0.8
+            }
+          ]
+        }
+      },
+      "id": "is-severe",
+      "name": "Is Severe Violation?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [850, 650]
+    },
+    {
+      "parameters": {
+        "url": "={{$json.platform === 'discord' ? 'http://discord-bot:3000/api/notify-moderators' : 'http://twitch-bot:3000/api/notify-moderators'}}",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "channel_id",
+              "value": "={{$json.channel_id}}"
+            },
+            {
+              "name": "user_id",
+              "value": "={{$json.user_id}}"
+            },
+            {
+              "name": "username",
+              "value": "={{$json.username}}"
+            },
+            {
+              "name": "violation_type",
+              "value": "={{$json.violations.join(', ')}}"
+            },
+            {
+              "name": "message",
+              "value": "={{$json.message}}"
+            },
+            {
+              "name": "actions_taken",
+              "value": "={{$json.actions.join(', ')}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notify-moderators",
+      "name": "Notify Moderators",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1050, 650]
+    },
+    {
+      "parameters": {
+        "url": "http://auto-mod:8700/api/v1/moderate/log-violation",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "user_id",
+              "value": "={{$json.user_id}}"
+            },
+            {
+              "name": "platform",
+              "value": "={{$json.platform}}"
+            },
+            {
+              "name": "channel_id",
+              "value": "={{$json.channel_id}}"
+            },
+            {
+              "name": "message",
+              "value": "={{$json.message}}"
+            },
+            {
+              "name": "violations",
+              "value": "={{$json.violations}}"
+            },
+            {
+              "name": "actions",
+              "value": "={{$json.actions}}"
+            },
+            {
+              "name": "scores",
+              "value": "={{$json.scores}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-violation",
+      "name": "Log Violation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1250, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, actions: $json.actions, violations: $json.violations } }}"
+      },
+      "id": "webhook-response",
+      "name": "Send Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1450, 400]
+    }
+  ],
+  "connections": {
+    "Webhook - Message Event": {
+      "main": [[{ "node": "Check Moderation", "type": "main", "index": 0 }]]
+    },
+    "Check Moderation": {
+      "main": [[{ "node": "Should Delete?", "type": "main", "index": 0 }]]
+    },
+    "Should Delete?": {
+      "main": [
+        [{ "node": "Delete Message", "type": "main", "index": 0 }],
+        [{ "node": "Should Timeout?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Delete Message": {
+      "main": [[{ "node": "Should Timeout?", "type": "main", "index": 0 }]]
+    },
+    "Should Timeout?": {
+      "main": [
+        [{ "node": "Timeout User", "type": "main", "index": 0 }],
+        [{ "node": "Should Ban?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Timeout User": {
+      "main": [[{ "node": "Should Ban?", "type": "main", "index": 0 }]]
+    },
+    "Should Ban?": {
+      "main": [
+        [{ "node": "Ban User", "type": "main", "index": 0 }],
+        [{ "node": "Is Severe Violation?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Ban User": {
+      "main": [[{ "node": "Is Severe Violation?", "type": "main", "index": 0 }]]
+    },
+    "Is Severe Violation?": {
+      "main": [
+        [{ "node": "Notify Moderators", "type": "main", "index": 0 }],
+        [{ "node": "Log Violation", "type": "main", "index": 0 }]
+      ]
+    },
+    "Notify Moderators": {
+      "main": [[{ "node": "Log Violation", "type": "main", "index": 0 }]]
+    },
+    "Log Violation": {
+      "main": [[{ "node": "Send Response", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-01-15T00:00:00.000Z",
+  "versionId": "1"
+}
