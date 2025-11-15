@@ -1,0 +1,36 @@
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
+python-dotenv==1.0.0
+
+# Database
+prisma==0.12.0
+redis==5.0.1
+
+# AI/ML
+openai==1.10.0
+anthropic==0.18.0
+langchain==0.1.6
+langchain-openai==0.0.5
+chromadb==0.4.22
+sentence-transformers==2.3.1
+
+# NLP and Analysis
+transformers==4.37.0
+torch==2.1.2
+accelerate==0.26.1  # For efficient model loading
+bitsandbytes==0.42.0  # For 8-bit/4-bit quantization
+nltk==3.8.1
+textblob==0.18.0
+pandas==2.2.0
+numpy==1.26.3
+
+# Social Media
+tweepy==4.14.0
+python-telegram-bot==20.7
+
+# Utilities
+httpx==0.26.0
+aioredis==2.0.1
+schedule==1.2.0
