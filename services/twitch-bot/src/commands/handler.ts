@@ -13,6 +13,11 @@ import { ShoutoutCommand } from './shoutout';
 import { PollCommand } from './poll';
 import { RaidCommand } from './raid';
 import { OBSCommands } from './obs';
+import { RPSCommand } from './rps';
+import { EightBallCommand } from './8ball';
+import { DiceCommand } from './dice';
+import { CoinflipCommand } from './coinflip';
+import { TriviaCommand } from './trivia';
 
 export class CommandHandler {
   private client: tmi.Client;
@@ -21,6 +26,7 @@ export class CommandHandler {
   private cooldowns: Map<string, number> = new Map();
 
   private commands: Map<string, any> = new Map();
+  private triviaCommand: TriviaCommand;
 
   constructor(client: tmi.Client, redis: RedisClientType, logger: Logger) {
     this.client = client;
@@ -46,9 +52,22 @@ export class CommandHandler {
     this.commands.set('source', obsCommands);
     this.commands.set('startstream', obsCommands);
     this.commands.set('stopstream', obsCommands);
+
+    // Game commands
+    this.commands.set('rps', new RPSCommand(client, redis, logger));
+    this.commands.set('8ball', new EightBallCommand(client, redis, logger));
+    this.commands.set('roll', new DiceCommand(client, redis, logger));
+    this.commands.set('dice', new DiceCommand(client, redis, logger));
+    this.commands.set('coinflip', new CoinflipCommand(client, redis, logger));
+    this.triviaCommand = new TriviaCommand(client, redis, logger);
+    this.commands.set('trivia', this.triviaCommand);
   }
 
   async handle(channel: string, userstate: tmi.ChatUserstate, message: string) {
+    // Check for trivia answers (even without prefix)
+    const triviaAnswered = await this.triviaCommand.checkAnswer(channel, userstate, message);
+    if (triviaAnswered) return;
+
     const prefix = process.env.COMMAND_PREFIX || '!';
     if (!message.startsWith(prefix)) return;
 
