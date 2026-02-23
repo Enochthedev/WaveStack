@@ -1,0 +1,10 @@
+fastapi[all]
+uvicorn[standard]
+prisma
+redis
+pydantic-settings
+openai
+anthropic
+ollama
+sse-starlette
+httpx

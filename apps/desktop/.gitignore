@@ -1,0 +1,17 @@
+# Rust build output — can be 5–15 GB, never commit
+src-tauri/target/
+
+# Tauri generated files
+src-tauri/WixTools/
+src-tauri/gen/
+
+# Node
+node_modules/
+dist/
+
+# macOS
+.DS_Store
+
+# env
+.env
+.env.local

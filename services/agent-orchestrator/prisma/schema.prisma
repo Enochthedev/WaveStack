@@ -1,0 +1,104 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider             = "prisma-client-py"
+  recursive_type_depth = 5
+}
+
+model AgentConfig {
+  id             String         @id @default(cuid())
+  orgId          String
+  agentType      String
+  name           String
+  autonomyLevel  String         // "manual" | "copilot" | "autopilot"
+  isEnabled      Boolean        @default(true)
+  config         Json
+  allowedSkills  String[]
+  systemPrompt   String?
+  tasks          AgentTask[]
+
+  @@map("agent_configs")
+}
+
+model AgentTask {
+  id               String            @id @default(cuid())
+  orgId            String
+  agentId          String
+  agent            AgentConfig       @relation(fields: [agentId], references: [id])
+  title            String
+  taskType         String
+  priority         Int
+  status           String            // "queued" | "planning" | "awaiting_approval" | "running" | "completed" | "failed"
+  input            Json
+  output           Json?
+  skillId          String?
+  reasoningTrace   Json
+  decisions        AgentDecision[]
+  approvalRequest  ApprovalRequest?
+
+  @@map("agent_tasks")
+}
+
+model AgentDecision {
+  id            String            @id @default(cuid())
+  taskId        String
+  task          AgentTask         @relation(fields: [taskId], references: [id])
+  decisionType  String            // "plan" | "tool_call" | "delegate" | "escalate" | "complete"
+  reasoning     String
+  action        Json
+  result        Json?
+  confidence    Float?
+
+  @@map("agent_decisions")
+}
+
+model ApprovalRequest {
+  id             String            @id @default(cuid())
+  taskId         String            @unique
+  task           AgentTask         @relation(fields: [taskId], references: [id])
+  orgId          String
+  title          String
+  proposedAction Json
+  status         String            // "pending" | "approved" | "rejected" | "expired"
+  expiresAt      DateTime?
+
+  @@map("approval_requests")
+}
+
+model AgentCrew {
+  id       String            @id @default(cuid())
+  orgId    String
+  name     String
+  goal     String
+  status   String            // "idle" | "planning" | "running" | "completed" | "failed"
+  messages CrewMessage[]
+
+  @@map("agent_crews")
+}
+
+model CrewMessage {
+  id            String            @id @default(cuid())
+  crewId        String
+  crew          AgentCrew         @relation(fields: [crewId], references: [id])
+  fromAgentType String
+  toAgentType   String?
+  messageType   String            // "request" | "response" | "status_update" | "handoff"
+  content       Json
+
+  @@map("crew_messages")
+}
+
+model ChatMessage {
+  id         String            @id @default(cuid())
+  orgId      String
+  sessionId  String
+  role       String            // "user" | "assistant" | "system"
+  content    String
+  agentType  String?
+  metadata   Json
+
+  @@map("chat_messages")
+}
