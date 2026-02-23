@@ -1,0 +1,69 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model McpServer {
+  id         String    @id @default(cuid())
+  orgId      String
+  name       String
+  slug       String    @unique
+  transport  String    // "stdio" | "sse" | "http"
+  config     Json      // Transport-specific config
+  status     String    // "connected" | "disconnected" | "error"
+  lastPingAt DateTime?
+
+  tools      McpTool[]
+
+  @@map("mcp_servers")
+}
+
+model McpTool {
+  id          String    @id @default(cuid())
+  serverId    String
+  name        String
+  description String?
+  inputSchema Json
+  isEnabled   Boolean   @default(true)
+
+  server      McpServer @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  permissions McpToolPermission[]
+  usages      McpToolUsage[]
+
+  @@unique([serverId, name])
+  @@map("mcp_tools")
+}
+
+model McpToolPermission {
+  id        String  @id @default(cuid())
+  toolId    String
+  agentType String  // Agent type or "*" for all
+  allowed   Boolean @default(false)
+
+  tool      McpTool @relation(fields: [toolId], references: [id], onDelete: Cascade)
+
+  @@unique([toolId, agentType])
+  @@map("mcp_tool_permissions")
+}
+
+model McpToolUsage {
+  id         String   @id @default(cuid())
+  toolId     String
+  callerId   String
+  callerType String   // "agent" | "skill" | "user"
+  input      Json
+  output     Json?
+  durationMs Int?
+  status     String   // "success" | "error" | "timeout"
+  cached     Boolean  @default(false)
+
+  tool       McpTool  @relation(fields: [toolId], references: [id], onDelete: Cascade)
+
+  createdAt  DateTime @default(now())
+
+  @@map("mcp_tool_usages")
+}

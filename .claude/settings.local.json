@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app@latest:*)",
+      "Bash(pnpm add:*)",
+      "Bash(npx shadcn@latest init:*)",
+      "Bash(npx shadcn@latest add:*)",
+      "Bash(head:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run:*)",
+      "Bash(echo command installed:*)",
+      "Bash(ls:*)",
+      "Bash(rm:*)",
+      "WebSearch",
+      "WebFetch(domain:twitchtracker.com)",
+      "WebFetch(domain:support.sproutsocial.com)",
+      "WebFetch(domain:streamscharts.com)",
+      "Bash(tail:*)",
+      "Bash(grep competitors:*)",
+      "Bash(lsof:*)",
+      "Bash(npx shadcn:*)",
+      "Bash(python3:*)",
+      "Bash(node:*)",
+      "Bash(./node_modules/.bin/tsc:*)",
+      "Bash(cat:*)",
+      "Bash(find:*)"
+    ]
+  }
+}

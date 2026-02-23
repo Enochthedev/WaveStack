@@ -1,0 +1,68 @@
+generator client {
+  provider             = "prisma-client-py"
+  interface            = "asyncio"
+  recursive_type_depth = 5
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Document {
+  id           String          @id @default(cuid())
+  orgId        String
+  title        String
+  sourceType   String          // "file" | "url" | "platform_history" | "manual"
+  sourceUrl    String?
+  mimeType     String?
+  content      String?
+  status       String          // "pending" | "processing" | "indexed" | "failed"
+  chunkCount   Int             @default(0)
+  collectionId String
+  tags         String[]
+  
+  chunks       DocumentChunk[]
+  jobs         IngestionJob[]
+
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+}
+
+model DocumentChunk {
+  id         String   @id @default(cuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  chunkIndex Int
+  content    String
+  tokenCount Int
+  chromaId   String
+
+  createdAt  DateTime @default(now())
+}
+
+model ContextRule {
+  id            String   @id @default(cuid())
+  orgId         String
+  agentType     String   // "content" | "clip" | "*"
+  collectionIds String[]
+  maxChunks     Int      @default(5)
+  minRelevance  Float    @default(0.7)
+  systemPrompt  String?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model IngestionJob {
+  id            String    @id @default(cuid())
+  orgId         String
+  documentId    String?
+  document      Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  sourceType    String
+  status        String    // "queued" | "running" | "completed" | "failed"
+  chunksCreated Int       @default(0)
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}

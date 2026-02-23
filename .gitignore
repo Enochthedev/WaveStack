@@ -53,6 +53,15 @@ docker-compose.override.yml
 docker-compose.local.yml
 .dockerignore
 
+# Rust / Tauri  (target/ can be 5–15 GB — never commit)
+target/
+**/.cargo/
+Cargo.lock   # only ignore at root; keep service-level Cargo.lock
+
+# Next.js
+**/.next/
+**/out/
+
 # Golang
 bin/
 *.exe

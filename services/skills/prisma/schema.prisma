@@ -1,0 +1,90 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Skill {
+  id           String  @id @default(cuid())
+  orgId        String
+  name         String
+  slug         String  @unique
+  description  String?
+  category     String
+  isPublic     Boolean @default(false)
+  forkedFromId String?
+  installCount Int     @default(0)
+  ratingSum    Int     @default(0)
+  ratingCount  Int     @default(0)
+  authorId     String
+
+  versions   SkillVersion[]
+  executions SkillExecution[]
+  ratings    SkillRating[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orgId])
+  @@index([slug])
+}
+
+model SkillVersion {
+  id            String  @id @default(cuid())
+  skillId       String
+  version       String
+  definition    Json
+  inputSchema   Json
+  outputMapping Json
+  isLatest      Boolean @default(false)
+  isPublished   Boolean @default(false)
+
+  skill      Skill            @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  executions SkillExecution[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([skillId, version])
+}
+
+model SkillExecution {
+  id          String  @id @default(cuid())
+  skillId     String
+  versionId   String
+  orgId       String
+  triggeredBy String
+  triggerType String
+  input       Json
+  output      Json?
+  status      String
+  stepResults Json
+  durationMs  Int?
+
+  skill   Skill        @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  version SkillVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orgId])
+  @@index([skillId])
+}
+
+model SkillRating {
+  id      String  @id @default(cuid())
+  skillId String
+  userId  String
+  rating  Int
+  review  String?
+
+  skill Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([skillId, userId])
+}
