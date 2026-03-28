@@ -14,12 +14,21 @@ router = APIRouter(prefix="/api/v1/moderate", tags=["moderation"])
 
 
 class ModerateRequest(BaseModel):
-    message: str
+    message: str  # validated below
     user_id: str
     username: str
     platform: str  # discord, twitch, etc.
     channel_id: str
     user_roles: Optional[List[str]] = None
+
+    @classmethod
+    def model_validate(cls, *args, **kwargs):
+        obj = super().model_validate(*args, **kwargs)
+        if len(obj.message) > 2000:
+            obj.message = obj.message[:2000]
+        if len(obj.username) > 100:
+            obj.username = obj.username[:100]
+        return obj
 
 
 class ModerateResponse(BaseModel):
@@ -31,6 +40,53 @@ class ModerateResponse(BaseModel):
     scores: dict
     actions: List[str]
     reason: Optional[str]
+
+
+class ClassifyRequest(BaseModel):
+    message: str
+    username: Optional[str] = None
+
+
+class ClassifyResponse(BaseModel):
+    category: str  # question_for_streamer | community_chat | command | spam_or_toxicity
+    confidence: float
+
+
+@router.post("/classify", response_model=ClassifyResponse)
+async def classify_message_endpoint(request: ClassifyRequest):
+    """
+    Classify a chat message into one of four categories:
+      - command: starts with ! or /
+      - spam_or_toxicity: detected spam or hateful content
+      - question_for_streamer: contains a direct question (?) aimed at the streamer
+      - community_chat: general chatter
+    """
+    text = request.message.strip()
+
+    # Command detection (highest priority, deterministic)
+    if text.startswith("!") or text.startswith("/"):
+        return ClassifyResponse(category="command", confidence=0.99)
+
+    # Toxicity/spam check via content filter
+    lower = text.lower()
+    spam_signals = content_filter.get_banned_words()
+    if any(w in lower for w in spam_signals):
+        return ClassifyResponse(category="spam_or_toxicity", confidence=0.95)
+
+    # Simple heuristic: URL → spam
+    if "http://" in lower or "https://" in lower or "www." in lower:
+        return ClassifyResponse(category="spam_or_toxicity", confidence=0.80)
+
+    # Question detection
+    if "?" in text:
+        # Check if the question is plausibly directed at the streamer
+        streamer_keywords = ["you", "your", "do you", "are you", "can you", "will you",
+                             "what do you", "have you", "did you"]
+        if any(kw in lower for kw in streamer_keywords):
+            return ClassifyResponse(category="question_for_streamer", confidence=0.82)
+        return ClassifyResponse(category="question_for_streamer", confidence=0.65)
+
+    return ClassifyResponse(category="community_chat", confidence=0.75)
 
 
 @router.post("/check", response_model=ModerateResponse)
@@ -53,8 +109,8 @@ async def check_message(request: ModerateRequest):
         return ModerateResponse(**result)
 
     except Exception as e:
-        logger.error(f"Moderation check failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Moderation check failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal moderation error")
 
 
 @router.post("/filter/add-word")

@@ -43,28 +43,35 @@ const WEEK = [
 ];
 
 const PLATFORMS_AVAILABLE = [
-  { id: "youtube",        label: "YouTube"       },
-  { id: "twitch",         label: "Twitch"        },
-  { id: "tiktok",         label: "TikTok"        },
-  { id: "twitter",        label: "X / Twitter"   },
-  { id: "instagram",      label: "Instagram"     },
-  { id: "youtube_shorts", label: "YT Shorts"     },
+  { id: "youtube", label: "YouTube" },
+  { id: "twitch", label: "Twitch" },
+  { id: "tiktok", label: "TikTok" },
+  { id: "twitter", label: "X / Twitter" },
+  { id: "instagram", label: "Instagram" },
+  { id: "youtube_shorts", label: "YT Shorts" },
 ];
 
 function fmtTime(dateStr: string) {
-  return new Date(dateStr).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  return new Date(dateStr).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
 }
 
 function fmtFull(dateStr: string) {
   const d = new Date(dateStr);
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) +
-    " · " + d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  return (
+    d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) +
+    " · " +
+    d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
+  );
 }
 
 export default function SchedulePage() {
   const [posts, setPosts] = useState<Post[]>(initialPosts);
   const [newPostOpen, setNewPostOpen] = useState(false);
-  const [prefillDay, setPrefillDay] = useState<number | null>(null);
+  const [_prefillDay, setPrefillDay] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Post | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -76,9 +83,7 @@ export default function SchedulePage() {
   });
 
   function openNew(day?: number) {
-    const dayStr = day
-      ? `2026-02-${String(day).padStart(2, "0")}`
-      : "";
+    const dayStr = day ? `2026-02-${String(day).padStart(2, "0")}` : "";
     setPrefillDay(day ?? null);
     setForm({ title: "", date: dayStr, time: "12:00", platforms: [] });
     setNewPostOpen(true);
@@ -127,7 +132,7 @@ export default function SchedulePage() {
   }
 
   const sorted = [...posts].sort(
-    (a, b) => new Date(a.scheduleAt).getTime() - new Date(b.scheduleAt).getTime()
+    (a, b) => new Date(a.scheduleAt).getTime() - new Date(b.scheduleAt).getTime(),
   );
 
   const isFormValid = form.title.trim() && form.date && form.platforms.length > 0;
@@ -136,7 +141,8 @@ export default function SchedulePage() {
     <div className="space-y-6">
       <PageHeader title="Content Schedule" description="Your publishing calendar">
         <Button size="sm" onClick={() => openNew()}>
-          <Plus className="h-4 w-4 mr-1.5" />New Post
+          <Plus className="h-4 w-4 mr-1.5" />
+          New Post
         </Button>
       </PageHeader>
 
@@ -148,7 +154,9 @@ export default function SchedulePage() {
             <div className="grid grid-cols-7 border-b border-border">
               {WEEK.map((day) => (
                 <div key={day.day} className="border-r border-border px-3 py-2 last:border-r-0">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{day.label}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {day.label}
+                  </p>
                   <p className="text-sm font-medium">{day.date}</p>
                 </div>
               ))}
@@ -158,14 +166,19 @@ export default function SchedulePage() {
               {WEEK.map((day) => {
                 const dayPosts = byDay[day.day] ?? [];
                 return (
-                  <div key={day.day} className="min-h-[180px] border-r border-border p-2 last:border-r-0 space-y-1.5">
+                  <div
+                    key={day.day}
+                    className="min-h-[180px] border-r border-border p-2 last:border-r-0 space-y-1.5"
+                  >
                     {dayPosts.map((post) => (
                       <div
                         key={post.id}
                         className="group rounded-md border px-2 py-1.5 text-xs cursor-pointer hover:opacity-80 transition-opacity bg-muted/30 border-border relative"
                         onClick={() => setDeleteTarget(post)}
                       >
-                        <p className="font-medium text-[11px] text-muted-foreground">{fmtTime(post.scheduleAt)}</p>
+                        <p className="font-medium text-[11px] text-muted-foreground">
+                          {fmtTime(post.scheduleAt)}
+                        </p>
                         <p className="leading-tight truncate mt-0.5">{post.title}</p>
                         <div className="flex gap-1 mt-1 flex-wrap">
                           {post.platforms.map((p) => (
@@ -195,11 +208,14 @@ export default function SchedulePage() {
 
       {/* Summary list */}
       <Card>
-        <CardHeader><CardTitle>Scheduled This Week</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>Scheduled This Week</CardTitle>
+        </CardHeader>
         <CardContent className="px-0">
           {sorted.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">
-              Nothing scheduled. Click <strong>New Post</strong> or a <strong>+</strong> on the calendar to add one.
+              Nothing scheduled. Click <strong>New Post</strong> or a <strong>+</strong> on the
+              calendar to add one.
             </p>
           ) : (
             <div className="divide-y divide-border">
@@ -208,18 +224,24 @@ export default function SchedulePage() {
                   key={post.id}
                   className={cn(
                     "flex items-center gap-3 px-6 py-3 text-sm flex-wrap group",
-                    i % 2 === 0 ? "bg-muted/20" : ""
+                    i % 2 === 0 ? "bg-muted/20" : "",
                   )}
                 >
                   <div className="flex gap-1 shrink-0">
                     {post.platforms.map((p) => (
-                      <Badge key={p} variant="outline" className={`text-xs ${platformBadge[p] ?? ""}`}>
+                      <Badge
+                        key={p}
+                        variant="outline"
+                        className={`text-xs ${platformBadge[p] ?? ""}`}
+                      >
                         {platformLabel[p] ?? p}
                       </Badge>
                     ))}
                   </div>
                   <span className="flex-1 min-w-0 truncate font-medium">{post.title}</span>
-                  <span className="shrink-0 text-xs text-muted-foreground">{fmtFull(post.scheduleAt)}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {fmtFull(post.scheduleAt)}
+                  </span>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -285,7 +307,7 @@ export default function SchedulePage() {
                         "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
                         active
                           ? "border-primary bg-primary/10 text-primary"
-                          : "border-border text-muted-foreground hover:border-primary/50"
+                          : "border-border text-muted-foreground hover:border-primary/50",
                       )}
                     >
                       {p.label}
@@ -299,7 +321,9 @@ export default function SchedulePage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setNewPostOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setNewPostOpen(false)}>
+              Cancel
+            </Button>
             <Button onClick={handleSave} disabled={saving || !isFormValid}>
               {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Schedule
@@ -309,7 +333,10 @@ export default function SchedulePage() {
       </Dialog>
 
       {/* Delete confirmation */}
-      <AlertDialog open={!!deleteTarget} onOpenChange={(open: boolean) => !open && setDeleteTarget(null)}>
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(open: boolean) => !open && setDeleteTarget(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Remove scheduled post?</AlertDialogTitle>

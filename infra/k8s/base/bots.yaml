@@ -1,0 +1,67 @@
+# ── Twitch Bot ────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: twitch-bot
+  namespace: wavestack
+  labels:
+    app: twitch-bot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: twitch-bot
+  template:
+    metadata:
+      labels:
+        app: twitch-bot
+    spec:
+      containers:
+        - name: twitch-bot
+          image: wavestack/twitch-bot:latest
+          envFrom:
+            - configMapRef:
+                name: wavestack-config
+            - secretRef:
+                name: wavestack-secrets
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+---
+# ── Discord Bot ───────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: discord-bot
+  namespace: wavestack
+  labels:
+    app: discord-bot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: discord-bot
+  template:
+    metadata:
+      labels:
+        app: discord-bot
+    spec:
+      containers:
+        - name: discord-bot
+          image: wavestack/discord-bot:latest
+          envFrom:
+            - configMapRef:
+                name: wavestack-config
+            - secretRef:
+                name: wavestack-secrets
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi

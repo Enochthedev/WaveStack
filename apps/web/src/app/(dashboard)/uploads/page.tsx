@@ -25,19 +25,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Upload,
-  CloudUpload,
-  CheckCircle2,
-  XCircle,
-  Loader2,
-  X,
-  HardDrive,
-  Clock,
-  Zap,
-  Youtube,
-  Twitch,
-} from "lucide-react";
+import { Upload, CloudUpload, CheckCircle2, Loader2, X, HardDrive, Clock, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -72,8 +60,8 @@ const SEED_JOBS: CloudJob[] = [
     cloudStatus: "complete",
     startedAt: new Date(Date.now() - 18 * 60_000).toISOString(),
     platforms: [
-      { platform: "youtube",  status: "processing", progress: 62, eta: "4m" },
-      { platform: "twitch",   status: "complete",   progress: 100, eta: null },
+      { platform: "youtube", status: "processing", progress: 62, eta: "4m" },
+      { platform: "twitch", status: "complete", progress: 100, eta: null },
     ],
   },
   {
@@ -84,8 +72,8 @@ const SEED_JOBS: CloudJob[] = [
     cloudStatus: "uploading",
     startedAt: new Date(Date.now() - 4 * 60_000).toISOString(),
     platforms: [
-      { platform: "youtube",  status: "queued", progress: 0, eta: null },
-      { platform: "tiktok",   status: "queued", progress: 0, eta: null },
+      { platform: "youtube", status: "queued", progress: 0, eta: null },
+      { platform: "tiktok", status: "queued", progress: 0, eta: null },
     ],
   },
 ];
@@ -100,7 +88,7 @@ const COMPLETED_JOBS: CloudJob[] = [
     startedAt: new Date(Date.now() - 2 * 3_600_000).toISOString(),
     platforms: [
       { platform: "youtube", status: "complete", progress: 100, eta: null },
-      { platform: "twitch",  status: "complete", progress: 100, eta: null },
+      { platform: "twitch", status: "complete", progress: 100, eta: null },
     ],
   },
   {
@@ -112,7 +100,7 @@ const COMPLETED_JOBS: CloudJob[] = [
     startedAt: new Date(Date.now() - 5 * 3_600_000).toISOString(),
     platforms: [
       { platform: "youtube", status: "complete", progress: 100, eta: null },
-      { platform: "tiktok",  status: "complete", progress: 100, eta: null },
+      { platform: "tiktok", status: "complete", progress: 100, eta: null },
     ],
   },
 ];
@@ -132,24 +120,28 @@ function relTime(iso: string) {
 }
 
 const PLATFORM_META: Record<string, { label: string; color: string }> = {
-  youtube: { label: "YouTube",  color: "text-red-500"    },
-  twitch:  { label: "Twitch",   color: "text-purple-500" },
-  tiktok:  { label: "TikTok",   color: "text-pink-500"   },
-  instagram:{ label: "Instagram", color: "text-orange-500" },
+  youtube: { label: "YouTube", color: "text-red-500" },
+  twitch: { label: "Twitch", color: "text-purple-500" },
+  tiktok: { label: "TikTok", color: "text-pink-500" },
+  instagram: { label: "Instagram", color: "text-orange-500" },
 };
 
 const PLATFORMS = ["youtube", "twitch", "tiktok"];
 
 function statusBadge(status: UploadStatus) {
   const map: Record<UploadStatus, { label: string; className: string }> = {
-    uploading:  { label: "Uploading",  className: "text-blue-400 border-blue-500/30" },
+    uploading: { label: "Uploading", className: "text-blue-400 border-blue-500/30" },
     processing: { label: "Processing", className: "text-yellow-400 border-yellow-500/30" },
-    complete:   { label: "Done",       className: "text-green-400 border-green-500/30" },
-    failed:     { label: "Failed",     className: "text-destructive border-destructive/30" },
-    queued:     { label: "Queued",     className: "text-muted-foreground" },
+    complete: { label: "Done", className: "text-green-400 border-green-500/30" },
+    failed: { label: "Failed", className: "text-destructive border-destructive/30" },
+    queued: { label: "Queued", className: "text-muted-foreground" },
   };
   const { label, className } = map[status];
-  return <Badge variant="outline" className={`text-xs ${className}`}>{label}</Badge>;
+  return (
+    <Badge variant="outline" className={`text-xs ${className}`}>
+      {label}
+    </Badge>
+  );
 }
 
 // ── Storage mock ────────────────────────────────────────────────────────────
@@ -207,16 +199,14 @@ export default function UploadsPage() {
             };
           }
           return job;
-        })
+        }),
       );
     }, 1200);
     return () => clearInterval(interval);
   }, []);
 
   function togglePlatform(p: string) {
-    setSelectedPlatforms((prev) =>
-      prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]
-    );
+    setSelectedPlatforms((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]));
   }
 
   async function handleUpload() {
@@ -255,10 +245,10 @@ export default function UploadsPage() {
   }
 
   const activeJobs = jobs.filter(
-    (j) => j.cloudStatus !== "complete" || j.platforms.some((p) => p.status !== "complete")
+    (j) => j.cloudStatus !== "complete" || j.platforms.some((p) => p.status !== "complete"),
   );
   const finishedJobs = jobs.filter(
-    (j) => j.cloudStatus === "complete" && j.platforms.every((p) => p.status === "complete")
+    (j) => j.cloudStatus === "complete" && j.platforms.every((p) => p.status === "complete"),
   );
 
   const storagePct = Math.round((STORAGE_USED_GB / STORAGE_TOTAL_GB) * 100);
@@ -284,7 +274,9 @@ export default function UploadsPage() {
           <div>
             <p className="text-sm font-semibold">Zero impact on your machine</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              WaveStack uploads to YouTube, Twitch, TikTok server-side. Uploading a 4 GB VOD locally takes ~40 min of bandwidth. We do it in the background — no CPU, no GPU, no network saturation.
+              WaveStack uploads to YouTube, Twitch, TikTok server-side. Uploading a 4 GB VOD locally
+              takes ~40 min of bandwidth. We do it in the background — no CPU, no GPU, no network
+              saturation.
             </p>
           </div>
         </div>
@@ -318,7 +310,8 @@ export default function UploadsPage() {
           </div>
           <Progress value={storagePct} className="h-2" />
           <p className="text-xs text-muted-foreground mt-1.5">
-            {STORAGE_TOTAL_GB - STORAGE_USED_GB} GB remaining — files are kept for 30 days after publishing
+            {STORAGE_TOTAL_GB - STORAGE_USED_GB} GB remaining — files are kept for 30 days after
+            publishing
           </p>
         </CardContent>
       </Card>
@@ -370,13 +363,21 @@ export default function UploadsPage() {
                 {/* Per-platform progress */}
                 <div className="pl-4 border-l-2 border-border space-y-2">
                   {job.platforms.map((p) => {
-                    const meta = PLATFORM_META[p.platform] ?? { label: p.platform, color: "text-foreground" };
+                    const meta = PLATFORM_META[p.platform] ?? {
+                      label: p.platform,
+                      color: "text-foreground",
+                    };
                     return (
                       <div key={p.platform} className="space-y-1">
                         <div className="flex items-center justify-between text-xs">
                           <span className={cn("font-medium", meta.color)}>{meta.label}</span>
                           <div className="flex items-center gap-2">
-                            {p.eta && <span className="text-muted-foreground flex items-center gap-1"><Clock className="h-3 w-3" />{p.eta}</span>}
+                            {p.eta && (
+                              <span className="text-muted-foreground flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {p.eta}
+                              </span>
+                            )}
                             {statusBadge(p.status)}
                           </div>
                         </div>
@@ -385,7 +386,7 @@ export default function UploadsPage() {
                           className={cn(
                             "h-1",
                             p.status === "complete" && "[&>div]:bg-green-500",
-                            p.status === "queued" && "opacity-40"
+                            p.status === "queued" && "opacity-40",
                           )}
                         />
                       </div>
@@ -412,13 +413,18 @@ export default function UploadsPage() {
                   <p className="text-sm font-medium truncate">{job.filename}</p>
                   <div className="flex gap-2 mt-0.5 flex-wrap">
                     {job.platforms.map((p) => (
-                      <span key={p.platform} className={cn("text-xs font-medium", PLATFORM_META[p.platform]?.color)}>
+                      <span
+                        key={p.platform}
+                        className={cn("text-xs font-medium", PLATFORM_META[p.platform]?.color)}
+                      >
                         {PLATFORM_META[p.platform]?.label ?? p.platform} ✓
                       </span>
                     ))}
                   </div>
                 </div>
-                <span className="text-xs text-muted-foreground shrink-0">{relTime(job.startedAt)}</span>
+                <span className="text-xs text-muted-foreground shrink-0">
+                  {relTime(job.startedAt)}
+                </span>
               </div>
             ))}
           </CardContent>
@@ -439,14 +445,21 @@ export default function UploadsPage() {
                 <p className="text-sm font-medium truncate">{job.filename}</p>
                 <div className="flex gap-2 mt-0.5 flex-wrap">
                   {job.platforms.map((p) => (
-                    <span key={p.platform} className={cn("text-xs", PLATFORM_META[p.platform]?.color)}>
+                    <span
+                      key={p.platform}
+                      className={cn("text-xs", PLATFORM_META[p.platform]?.color)}
+                    >
                       {PLATFORM_META[p.platform]?.label ?? p.platform}
                     </span>
                   ))}
                 </div>
               </div>
-              <span className="text-xs text-muted-foreground shrink-0">{fmtBytes(job.sizeBytes)}</span>
-              <span className="text-xs text-muted-foreground shrink-0">{relTime(job.startedAt)}</span>
+              <span className="text-xs text-muted-foreground shrink-0">
+                {fmtBytes(job.sizeBytes)}
+              </span>
+              <span className="text-xs text-muted-foreground shrink-0">
+                {relTime(job.startedAt)}
+              </span>
             </div>
           ))}
         </CardContent>
@@ -457,15 +470,21 @@ export default function UploadsPage() {
         <div
           className={cn(
             "border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors",
-            dragOver ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+            dragOver ? "border-primary bg-primary/5" : "border-border hover:border-primary/50",
           )}
-          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOver(true);
+          }}
           onDragLeave={() => setDragOver(false)}
           onDrop={(e) => {
             e.preventDefault();
             setDragOver(false);
             const f = e.dataTransfer.files[0];
-            if (f) { setSelectedFile(f); setUploadOpen(true); }
+            if (f) {
+              setSelectedFile(f);
+              setUploadOpen(true);
+            }
           }}
           onClick={() => setUploadOpen(true)}
           role="button"
@@ -474,12 +493,22 @@ export default function UploadsPage() {
         >
           <CloudUpload className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
           <p className="text-sm font-medium">Drop a VOD here or click to upload</p>
-          <p className="text-xs text-muted-foreground mt-1">MP4, MOV, MKV up to 100 GB · WaveStack handles the rest</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            MP4, MOV, MKV up to 100 GB · WaveStack handles the rest
+          </p>
         </div>
       )}
 
       {/* Upload Dialog */}
-      <Dialog open={uploadOpen} onOpenChange={(open: boolean) => { if (!uploading) { setUploadOpen(open); if (!open) setSelectedFile(null); } }}>
+      <Dialog
+        open={uploadOpen}
+        onOpenChange={(open: boolean) => {
+          if (!uploading) {
+            setUploadOpen(open);
+            if (!open) setSelectedFile(null);
+          }
+        }}
+      >
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Upload VOD to Cloud</DialogTitle>
@@ -489,10 +518,13 @@ export default function UploadsPage() {
             <div
               className={cn(
                 "border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors",
-                dragOver ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                dragOver ? "border-primary bg-primary/5" : "border-border hover:border-primary/50",
               )}
               onClick={() => fileInputRef.current?.click()}
-              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
               onDragLeave={() => setDragOver(false)}
               onDrop={(e) => {
                 e.preventDefault();
@@ -505,12 +537,16 @@ export default function UploadsPage() {
               {selectedFile ? (
                 <div>
                   <p className="text-sm font-medium">{selectedFile.name}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{fmtBytes(selectedFile.size)}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {fmtBytes(selectedFile.size)}
+                  </p>
                 </div>
               ) : (
                 <>
                   <p className="text-sm text-muted-foreground">Click to browse or drag a file</p>
-                  <p className="text-xs text-muted-foreground mt-1">MP4, MOV, MKV, WEBM up to 100 GB</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    MP4, MOV, MKV, WEBM up to 100 GB
+                  </p>
                 </>
               )}
               <input
@@ -518,7 +554,10 @@ export default function UploadsPage() {
                 type="file"
                 accept="video/*"
                 className="hidden"
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) setSelectedFile(f); }}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) setSelectedFile(f);
+                }}
               />
             </div>
 
@@ -537,7 +576,7 @@ export default function UploadsPage() {
                         "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
                         active
                           ? "border-primary bg-primary/10 text-primary"
-                          : "border-border text-muted-foreground hover:border-primary/50"
+                          : "border-border text-muted-foreground hover:border-primary/50",
                       )}
                     >
                       <span className={active ? "text-primary" : meta.color}>{meta.label}</span>
@@ -552,14 +591,25 @@ export default function UploadsPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setUploadOpen(false); setSelectedFile(null); }} disabled={uploading}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setUploadOpen(false);
+                setSelectedFile(null);
+              }}
+              disabled={uploading}
+            >
               Cancel
             </Button>
             <Button
               onClick={handleUpload}
               disabled={uploading || !selectedFile || selectedPlatforms.length === 0}
             >
-              {uploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CloudUpload className="h-4 w-4 mr-2" />}
+              {uploading ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <CloudUpload className="h-4 w-4 mr-2" />
+              )}
               {uploading ? "Queuing…" : "Upload to Cloud"}
             </Button>
           </DialogFooter>
@@ -567,12 +617,16 @@ export default function UploadsPage() {
       </Dialog>
 
       {/* Cancel confirmation */}
-      <AlertDialog open={!!cancelTarget} onOpenChange={(open: boolean) => !open && setCancelTarget(null)}>
+      <AlertDialog
+        open={!!cancelTarget}
+        onOpenChange={(open: boolean) => !open && setCancelTarget(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel upload?</AlertDialogTitle>
             <AlertDialogDescription>
-              &ldquo;{cancelTarget?.filename}&rdquo; will be removed from the cloud queue. Any partial uploads to platforms will be discarded.
+              &ldquo;{cancelTarget?.filename}&rdquo; will be removed from the cloud queue. Any
+              partial uploads to platforms will be discarded.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

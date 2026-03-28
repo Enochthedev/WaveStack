@@ -7,23 +7,36 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Camera, Loader2 } from "lucide-react";
 
 export default function AccountPage() {
-  const [name,       setName]       = useState("WaveStack Creator");
-  const [username,   setUsername]   = useState("wavestack");
-  const [email,      setEmail]      = useState("creator@wavestack.io");
-  const [bio,        setBio]        = useState("Full-time content creator. Streaming, coding, and building tools for creators.");
-  const [location,   setLocation]   = useState("New York, USA");
-  const [website,    setWebsite]    = useState("https://wavestack.io");
-  const [timezone,   setTimezone]   = useState("EST");
-  const [saving,     setSaving]     = useState(false);
+  const [name, setName] = useState("WaveStack Creator");
+  const [username, setUsername] = useState("wavestack");
+  const [email, setEmail] = useState("creator@wavestack.io");
+  const [bio, setBio] = useState(
+    "Full-time content creator. Streaming, coding, and building tools for creators.",
+  );
+  const [location, setLocation] = useState("New York, USA");
+  const [website, setWebsite] = useState("https://wavestack.io");
+  const [timezone, setTimezone] = useState("EST");
+  const [saving, setSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteInput, setDeleteInput] = useState("");
 
@@ -64,8 +77,13 @@ export default function AccountPage() {
               </div>
             </div>
             <div className="space-y-1">
-              <Button variant="outline" size="sm" onClick={() => toast.info("Photo upload coming soon")}>
-                <Camera className="h-3.5 w-3.5 mr-2" />Change photo
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => toast.info("Photo upload coming soon")}
+              >
+                <Camera className="h-3.5 w-3.5 mr-2" />
+                Change photo
               </Button>
               <p className="text-xs text-muted-foreground">JPG, PNG or GIF · max 2 MB</p>
             </div>
@@ -79,8 +97,14 @@ export default function AccountPage() {
             <div className="space-y-2">
               <Label>Username</Label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">@</span>
-                <Input className="pl-7" value={username} onChange={(e) => setUsername(e.target.value)} />
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                  @
+                </span>
+                <Input
+                  className="pl-7"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                />
               </div>
             </div>
           </div>
@@ -116,10 +140,14 @@ export default function AccountPage() {
           <div className="space-y-2">
             <Label>Timezone</Label>
             <Select value={timezone} onValueChange={setTimezone}>
-              <SelectTrigger className="w-64"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-64">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {["UTC", "EST", "CST", "MST", "PST", "GMT", "CET", "JST"].map((tz) => (
-                  <SelectItem key={tz} value={tz}>{tz}</SelectItem>
+                  <SelectItem key={tz} value={tz}>
+                    {tz}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -159,8 +187,8 @@ export default function AccountPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete your account?</AlertDialogTitle>
             <AlertDialogDescription>
-              All your data, agents, workflows, and content will be permanently deleted.
-              Type <span className="font-mono font-semibold text-destructive">DELETE</span> to confirm.
+              All your data, agents, workflows, and content will be permanently deleted. Type{" "}
+              <span className="font-mono font-semibold text-destructive">DELETE</span> to confirm.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <Input

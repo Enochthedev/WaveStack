@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     WHITELIST_ROLES: List[str] = ["mod", "vip", "broadcaster", "admin"]  # Exempt from moderation
     WHITELIST_USERS: List[str] = []  # Specific exempt users
 
+    # CORS — comma-separated origins, or "*" for dev only
+    CORS_ORIGINS: str = "http://localhost:3000"
+
     # Logging
     LOG_ALL_MESSAGES: bool = False  # Log all messages (privacy concern)
     LOG_VIOLATIONS: bool = True  # Log only violations

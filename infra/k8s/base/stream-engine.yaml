@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stream-engine
+  namespace: wavestack
+  labels:
+    app: stream-engine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: stream-engine
+  template:
+    metadata:
+      labels:
+        app: stream-engine
+    spec:
+      containers:
+        - name: stream-engine
+          image: wavestack/stream-engine:latest
+          ports:
+            - containerPort: 3400
+          envFrom:
+            - configMapRef:
+                name: wavestack-config
+            - secretRef:
+                name: wavestack-secrets
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3400
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: stream-engine
+  namespace: wavestack
+spec:
+  selector:
+    app: stream-engine
+  ports:
+    - port: 3400
+      targetPort: 3400

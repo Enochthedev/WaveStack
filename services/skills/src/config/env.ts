@@ -8,6 +8,7 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url(),
   REDIS_URL: z.string().url(),
   MCP_GATEWAY_URL: z.string().url(),
+  INTERNAL_SERVICE_SECRET: z.string().default("dev-internal-secret"),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
 });
 

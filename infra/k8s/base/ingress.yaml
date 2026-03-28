@@ -1,0 +1,42 @@
+# Requires: ingress-nginx controller installed in cluster
+# TLS: cert-manager with Let's Encrypt (annotate with cert-manager.io/cluster-issuer: letsencrypt-prod)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wavestack-ingress
+  namespace: wavestack
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-body-size: "512m"
+    # SSE — disable buffering so events reach clients immediately
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/x-forwarded-prefix: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - app.wavestack.app
+        - api.wavestack.app
+      secretName: wavestack-tls
+  rules:
+    - host: app.wavestack.app
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 3001
+    - host: api.wavestack.app
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: core-app
+                port:
+                  number: 3000

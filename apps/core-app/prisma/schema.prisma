@@ -1,5 +1,6 @@
 // Prisma schema for WaveStack Core App
-// This schema defines the data models for the creator automation platform
+// All IDs: cuid(). Timestamps: timestamptz (DateTime). Soft-deletes: deletedAt.
+// RULE: every query MUST filter by orgId — no cross-tenant leaks.
 
 generator client {
   provider = "prisma-client-js"
@@ -7,93 +8,328 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
-// Queue items represent content scheduled for publishing across platforms
-model QueueItem {
-  id              String   @id @default(cuid())
-  orgId           String   // Organization identifier (extracted from JWT)
-  projectId       String   // Project this content belongs to
-  assetId         String   // Reference to the media asset (video, image, etc.)
+// ─────────────────────────────────────────────────────────────
+// IDENTITY
+// ─────────────────────────────────────────────────────────────
 
-  title           String   @db.VarChar(120)
-  caption         String?  @db.Text
-  hashtags        String[] @default([])
-  platforms       String[] // e.g., ["youtube", "instagram", "x"]
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String?   @map("password_hash")
+  name         String?
+  avatarUrl    String?   @map("avatar_url")
 
-  scheduleAt      DateTime?
-  idempotencyKey  String   @unique
-  status          String   // e.g., "queued", "processing", "published", "failed"
+  // Training data consent — false means this user's interactions are never used for model training
+  dataConsent  Boolean   @default(true) @map("data_consent")
 
-  outbox          Json     @default("[]") // Event log for state changes
-
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
 
   // Relations
-  asset           Asset    @relation(fields: [assetId], references: [id])
-  posts           Post[]
+  memberships  OrgMember[]
+  sessions     ChatSession[]
+  approvals    ApprovalRequest[] @relation("ReviewedBy")
+  memories     UserMemory[]
 
-  @@index([orgId])
-  @@index([projectId])
-  @@index([status])
-  @@index([scheduleAt])
-  @@map("queue_items")
+  @@index([email])
+  @@index([deletedAt])
+  @@map("users")
 }
 
-// Posts represent published content on external platforms
-model Post {
-  id            String   @id @default(cuid())
-  orgId         String
-  queueItemId   String
-  platform      String   // "youtube", "instagram", "x", etc.
-  externalId    String   // Platform-specific post ID
-  url           String   // Direct URL to the published content
+model Organization {
+  id                String    @id @default(cuid())
+  name              String
+  slug              String    @unique
+  plan              String    @default("free") // free | pro | enterprise
+  billingCustomerId String?   @map("billing_customer_id")
+  settings          Json      @default("{}")
 
-  publishedAt   DateTime
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at")
 
   // Relations
-  queueItem     QueueItem @relation(fields: [queueItemId], references: [id], onDelete: Cascade)
+  members            OrgMember[]
+  platformCredentials PlatformCredential[]
+  agentConfigs       AgentConfig[]
+  agentTasks         AgentTask[]
+  approvalRequests   ApprovalRequest[]
+  agentCrews         AgentCrew[]
+  chatSessions       ChatSession[]
+  streamSessions     StreamSession[]
+  assets             Asset[]
+  queueItems         QueueItem[]
+  posts              Post[]
+  projects           Project[]
+  creatorModels      CreatorModel[]
+  trainingExamples   TrainingExample[]
+  platformSnapshots  PlatformSnapshot[]
+  contentPerformance ContentPerformance[]
+  skills             Skill[]
+  skillExecutions    SkillExecution[]
+  communityMembers   CommunityMember[]
+  chatLogEntries     ChatLogEntry[]
+  milestones         Milestone[]
+  flaggedMessages    FlaggedMessage[]
+  moderationRules    ModerationRule[]
+  bannedUsers        BannedUser[]
+  sponsors           Sponsor[]
+  notifications      Notification[]
+  notificationPrefs  NotificationPref[]
+  seoScores          SeoScore[]
+  competitors        Competitor[]
+  workflows          Workflow[]
+  workflowRuns       WorkflowRun[]
+  teamInvites        TeamInvite[]
+  billing            Billing?
+  invoices           Invoice[]
+  userMemories       UserMemory[]
 
-  @@unique([queueItemId, platform])
+  @@index([deletedAt])
+  @@map("organizations")
+}
+
+model OrgMember {
+  id        String   @id @default(cuid())
+  orgId     String   @map("org_id")
+  userId    String   @map("user_id")
+  role      String   @default("viewer") // owner | admin | editor | viewer
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, userId])
+  @@index([userId])
+  @@map("org_members")
+}
+
+// ─────────────────────────────────────────────────────────────
+// PLATFORM CONNECTIONS
+// ─────────────────────────────────────────────────────────────
+
+model PlatformCredential {
+  id               String    @id @default(cuid())
+  orgId            String    @map("org_id")
+  platform         String    // twitch|youtube|tiktok|instagram|twitter|discord|facebook|linkedin|kick|spotify|patreon
+  accountId        String    @map("account_id")
+  accountHandle    String?   @map("account_handle")
+  accountAvatarUrl String?   @map("account_avatar_url")
+
+  // Stored encrypted at rest (application-layer AES-256-GCM)
+  accessToken      String    @map("access_token")
+  refreshToken     String?   @map("refresh_token")
+  tokenExpiresAt   DateTime? @map("token_expires_at")
+  scope            String[]  @default([])
+
+  status    String    @default("active") // active | expired | revoked
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, platform, accountId])
   @@index([orgId])
   @@index([platform])
-  @@index([publishedAt])
-  @@map("posts")
+  @@map("platform_credentials")
 }
 
-// Assets represent media files (videos, images, etc.) used in content
+// ─────────────────────────────────────────────────────────────
+// AGENT SYSTEM
+// ─────────────────────────────────────────────────────────────
+
+model AgentConfig {
+  id             String   @id @default(cuid())
+  orgId          String   @map("org_id")
+  agentType      String   @map("agent_type") // personal|content|publisher|community|analytics|growth|moderation
+  autonomyLevel  String   @default("copilot") @map("autonomy_level") // manual|copilot|autopilot
+  isEnabled      Boolean  @default(true) @map("is_enabled")
+  systemPrompt   String?  @db.Text @map("system_prompt")
+  allowedSkills  String[] @default([]) @map("allowed_skills")
+  config         Json     @default("{}")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, agentType])
+  @@index([orgId])
+  @@map("agent_configs")
+}
+
+model AgentTask {
+  id             String    @id @default(cuid())
+  orgId          String    @map("org_id")
+  agentType      String    @map("agent_type")
+  title          String
+  status         String    @default("pending") // pending|running|awaiting_approval|done|failed|cancelled
+  input          Json      @default("{}")
+  output         Json?
+  reasoningTrace Json?     @map("reasoning_trace")
+  skillId        String?   @map("skill_id")
+
+  createdAt    DateTime  @default(now()) @map("created_at")
+  startedAt    DateTime? @map("started_at")
+  completedAt  DateTime? @map("completed_at")
+
+  org             Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  approvalRequest ApprovalRequest?
+
+  @@index([orgId])
+  @@index([agentType])
+  @@index([status])
+  @@index([orgId, status])
+  @@index([orgId, agentType, status])
+  @@map("agent_tasks")
+}
+
+model ApprovalRequest {
+  id             String    @id @default(cuid())
+  orgId          String    @map("org_id")
+  taskId         String    @unique @map("task_id")
+  agentType      String    @map("agent_type")
+  title          String
+  description    String?   @db.Text
+  proposedAction Json      @map("proposed_action")
+  status         String    @default("pending") // pending|approved|rejected|expired
+  reviewedBy     String?   @map("reviewed_by")
+  reviewedAt     DateTime? @map("reviewed_at")
+  feedback       String?   @db.Text
+  expiresAt      DateTime  @map("expires_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  org    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  task   AgentTask    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  reviewer User?      @relation("ReviewedBy", fields: [reviewedBy], references: [id])
+
+  @@index([orgId])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("approval_requests")
+}
+
+model AgentCrew {
+  id         String   @id @default(cuid())
+  orgId      String   @map("org_id")
+  name       String
+  goal       String   @db.Text
+  agentTypes String[] @map("agent_types")
+  status     String   @default("idle") // idle|running|paused|done
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@map("agent_crews")
+}
+
+model ChatSession {
+  id        String   @id @default(cuid())
+  orgId     String   @map("org_id")
+  userId    String   @map("user_id")
+  context   Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  org      Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user     User          @relation(fields: [userId], references: [id])
+  messages ChatMessage[]
+
+  @@index([orgId])
+  @@index([userId])
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  sessionId String   @map("session_id")
+  role      String   // user | assistant | system
+  content   String   @db.Text
+  agentType String?  @map("agent_type")
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("chat_messages")
+}
+
+// ─────────────────────────────────────────────────────────────
+// STREAM SYSTEM
+// ─────────────────────────────────────────────────────────────
+
+model StreamSession {
+  id               String    @id @default(cuid())
+  orgId            String    @map("org_id")
+  platform         String    // twitch|youtube|kick|facebook|...
+  streamKey        String?   @map("stream_key")
+  title            String?
+  game             String?
+  startedAt        DateTime? @map("started_at")
+  endedAt          DateTime? @map("ended_at")
+  peakViewers      Int?      @map("peak_viewers")
+  platformsRelayed String[]  @default([]) @map("platforms_relayed")
+  vodUrl           String?   @map("vod_url")
+  status           String    @default("idle") // idle|live|ended
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  org    Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  events StreamEvent[]
+
+  @@index([orgId])
+  @@index([status])
+  @@map("stream_sessions")
+}
+
+model StreamEvent {
+  id              String   @id @default(cuid())
+  streamSessionId String   @map("stream_session_id")
+  eventType       String   @map("event_type") // audio_spike|chat_spike|viewer_delta|scene_change|clip_trigger|...
+  timestamp       DateTime
+  data            Json     @default("{}")
+
+  streamSession StreamSession @relation(fields: [streamSessionId], references: [id], onDelete: Cascade)
+
+  @@index([streamSessionId])
+  @@index([eventType])
+  @@map("stream_events")
+}
+
+// ─────────────────────────────────────────────────────────────
+// CONTENT
+// ─────────────────────────────────────────────────────────────
+
 model Asset {
-  id          String   @id @default(cuid())
-  orgId       String
-  projectId   String?
+  id            String    @id @default(cuid())
+  orgId         String    @map("org_id")
+  projectId     String?   @map("project_id")
+  title         String?
+  description   String?   @db.Text
+  mimeType      String?   @map("mime_type")
+  duration      Int?      // seconds
+  sizeBytes     BigInt?   @map("size_bytes")
+  storagePath   String?   @map("storage_path")
+  cdnUrl        String?   @map("cdn_url")
 
-  // Media metadata
-  filename    String?
-  mimeType    String?
-  sizeBytes   BigInt?
-  duration    Int?     // Duration in seconds for video/audio
+  // Clip provenance
+  sourceStreamId  String?  @map("source_stream_id")
+  sourceStartSec  Float?   @map("source_start_sec")
+  sourceEndSec    Float?   @map("source_end_sec")
+  transcript      Json?
 
-  // Storage location
-  storageType String?  // "local", "s3", "gdrive", "onedrive"
-  storagePath String?  // Path or URL to the asset
+  status    String    @default("pending") // pending|processing|ready|failed
 
-  // Clip metadata (if this asset is a clip)
-  sourceUrl   String?  // Original stream/video URL
-  startTime   Float?   // Start timestamp in source video
-  endTime     Float?   // End timestamp in source video
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
 
-  // Processing status
-  status      String   @default("pending") // "pending", "processing", "ready", "failed"
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  queueItems  QueueItem[]
+  org        Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  queueItems QueueItem[]
+  performance ContentPerformance[]
 
   @@index([orgId])
   @@index([projectId])
@@ -101,37 +337,661 @@ model Asset {
   @@map("assets")
 }
 
-// Projects organize content and assets
-model Project {
-  id          String   @id @default(cuid())
-  orgId       String
-  name        String
-  description String?  @db.Text
+model QueueItem {
+  id             String    @id @default(cuid())
+  orgId          String    @map("org_id")
+  assetId        String?   @map("asset_id")
+  title          String    @db.VarChar(120)
+  caption        String?   @db.Text
+  hashtags       String[]  @default([])
+  platforms      String[]
+  scheduleAt     DateTime? @map("schedule_at")
+  timezone       String?
+  status         String    @default("queued") // queued|processing|published|failed|cancelled
+  idempotencyKey String    @unique @map("idempotency_key")
+  aiGenerated    Boolean   @default(false) @map("ai_generated")
+  approvalRequired Boolean @default(false) @map("approval_required")
+  approvedBy     String?   @map("approved_by")
+  approvedAt     DateTime? @map("approved_at")
+  publishedAt    DateTime? @map("published_at")
+  failedAt       DateTime? @map("failed_at")
+  failureReason  String?   @map("failure_reason")
+  outbox         Json      @default("[]")
 
-  // Project settings
-  settings    Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  asset Asset?       @relation(fields: [assetId], references: [id])
+  posts Post[]
 
   @@index([orgId])
+  @@index([status])
+  @@index([scheduleAt])
+  @@index([orgId, status])
+  @@index([orgId, scheduleAt])
+  @@map("queue_items")
+}
+
+model Post {
+  id          String   @id @default(cuid())
+  orgId       String   @map("org_id")
+  queueItemId String   @map("queue_item_id")
+  platform    String
+  externalId  String   @map("external_id")
+  url         String
+
+  publishedAt DateTime  @map("published_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  queueItem QueueItem    @relation(fields: [queueItemId], references: [id], onDelete: Cascade)
+
+  @@unique([queueItemId, platform])
+  @@index([orgId])
+  @@index([platform])
+  @@index([publishedAt])
+  @@index([queueItemId])
+  @@index([orgId, platform])
+  @@map("posts")
+}
+
+model Project {
+  id          String    @id @default(cuid())
+  orgId       String    @map("org_id")
+  name        String
+  description String?   @db.Text
+  settings    Json      @default("{}")
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([deletedAt])
   @@map("projects")
 }
 
-// Organizations (tenants) for multi-org support
-model Organization {
+// ─────────────────────────────────────────────────────────────
+// PERSONAL MODEL (per-creator fine-tune)
+// ─────────────────────────────────────────────────────────────
+
+model CreatorModel {
+  id                    String    @id @default(cuid())
+  orgId                 String    @map("org_id")
+  baseModel             String    @map("base_model") // e.g. meta-llama/Llama-3.2-3B-Instruct
+  version               Int       @default(1)
+  status                String    @default("pending") // pending|training|ready|deployed|failed
+  trainingExamplesCount Int       @default(0) @map("training_examples_count")
+  confidenceScore       Decimal   @default(0) @map("confidence_score") @db.Decimal(5, 4)
+  endpointUrl           String?   @map("endpoint_url")
+  deployedAt            DateTime? @map("deployed_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([status])
+  @@map("creator_models")
+}
+
+model TrainingExample {
+  id             String   @id @default(cuid())
+  orgId          String   @map("org_id")
+  userId         String?  @map("user_id")   // which user's interaction (null = org-level)
+  exampleType    String   @map("example_type") // chat_response|caption|rejection|bot_reply
+  prompt         String   @db.Text
+  response       String   @db.Text
+  feedback       String?  @db.Text
+  platform       String?                    // twitch|discord|twitter|etc.
+  source         String   @default("auto")  // auto|human_labeled
+  modelUsed      String?  @map("model_used") // personal_base|personal_finetuned|claude|openrouter_fallback
+  qualityScore   Decimal? @map("quality_score") @db.Decimal(5, 4)
+  consentGiven   Boolean  @default(true) @map("consent_given") // mirrors user.dataConsent at capture time
+  usedInTraining Boolean  @default(false) @map("used_in_training")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([userId])
+  @@index([exampleType])
+  @@index([usedInTraining])
+  @@index([consentGiven])
+  @@map("training_examples")
+}
+
+// ─────────────────────────────────────────────────────────────
+// ANALYTICS
+// ─────────────────────────────────────────────────────────────
+
+model PlatformSnapshot {
+  id             String   @id @default(cuid())
+  orgId          String   @map("org_id")
+  platform       String
+  accountId      String   @map("account_id")
+  followers      BigInt   @default(0)
+  views          BigInt   @default(0)
+  engagementRate Decimal  @default(0) @map("engagement_rate") @db.Decimal(8, 4)
+  revenueCents   BigInt   @default(0) @map("revenue_cents")
+  snapshottedAt  DateTime @map("snapshotted_at")
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([platform])
+  @@index([snapshottedAt])
+  @@index([orgId, platform, snapshottedAt])
+  @@map("platform_snapshots")
+}
+
+model ContentPerformance {
+  id               String   @id @default(cuid())
+  orgId            String   @map("org_id")
+  platform         String
+  externalId       String   @map("external_id")
+  assetId          String?  @map("asset_id")
+  views            BigInt   @default(0)
+  likes            Int      @default(0)
+  comments         Int      @default(0)
+  shares           Int      @default(0)
+  watchTimeMinutes BigInt   @default(0) @map("watch_time_minutes")
+  ctr              Decimal  @default(0) @db.Decimal(8, 4)
+  fetchedAt        DateTime @map("fetched_at")
+
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  asset Asset?       @relation(fields: [assetId], references: [id])
+
+  @@index([orgId])
+  @@index([platform])
+  @@index([fetchedAt])
+  @@index([orgId, platform, fetchedAt])
+  @@index([assetId])
+  @@map("content_performance")
+}
+
+// ─────────────────────────────────────────────────────────────
+// SKILLS (composable automations)
+// ─────────────────────────────────────────────────────────────
+
+model Skill {
   id          String   @id @default(cuid())
+  orgId       String   @map("org_id")
   name        String
-  slug        String   @unique
+  slug        String
+  description String?  @db.Text
+  category    String?
+  isBuiltIn   Boolean  @default(false) @map("is_built_in")
+  isEnabled   Boolean  @default(true) @map("is_enabled")
+  config      Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at")
 
-  // Subscription/billing
-  plan        String   @default("free") // "free", "pro", "enterprise"
+  org        Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  executions SkillExecution[]
 
-  // Settings
-  settings    Json     @default("{}")
+  @@unique([orgId, slug])
+  @@index([orgId])
+  @@map("skills")
+}
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+model SkillExecution {
+  id          String   @id @default(cuid())
+  skillId     String   @map("skill_id")
+  orgId       String   @map("org_id")
+  triggerType String   @map("trigger_type") // manual|scheduled|agent|webhook
+  input       Json     @default("{}")
+  output      Json?
+  stepResults Json?    @map("step_results")
+  status      String   @default("pending") // pending|running|done|failed
+  durationMs  Int?     @map("duration_ms")
+  createdAt   DateTime @default(now()) @map("created_at")
 
-  @@map("organizations")
+  skill Skill        @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([skillId])
+  @@index([orgId])
+  @@index([status])
+  @@map("skill_executions")
+}
+
+// ─────────────────────────────────────────────────────────────
+// API KEYS (for SDK / external developers)
+// ─────────────────────────────────────────────────────────────
+
+model ApiKey {
+  id        String    @id @default(cuid())
+  orgId     String    @map("org_id")
+  name      String
+  keyHash   String    @unique @map("key_hash") // bcrypt hash — never store raw
+  prefix    String    // first 8 chars shown to user for identification
+  scopes    String[]  @default([])
+  lastUsedAt DateTime? @map("last_used_at")
+  expiresAt DateTime? @map("expires_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  revokedAt DateTime? @map("revoked_at")
+
+  @@index([orgId])
+  @@map("api_keys")
+}
+
+// ─────────────────────────────────────────────────────────────
+// REFRESH TOKEN DENYLIST (revoked JTIs)
+// ─────────────────────────────────────────────────────────────
+
+model RevokedToken {
+  jti       String   @id
+  expiresAt DateTime @map("expires_at")
+  revokedAt DateTime @default(now()) @map("revoked_at")
+
+  @@index([expiresAt])
+  @@map("revoked_tokens")
+}
+
+// ─────────────────────────────────────────────────────────────
+// COMMUNITY
+// ─────────────────────────────────────────────────────────────
+
+model CommunityMember {
+  id               String   @id @default(cuid())
+  orgId            String   @map("org_id")
+  platform         String
+  platformUserId   String   @map("platform_user_id")
+  username         String
+  avatarUrl        String?  @map("avatar_url")
+  tier             String   @default("follower") // follower|subscriber|vip|mod
+  totalMessages    Int      @default(0) @map("total_messages")
+  bitsGiven        Int      @default(0) @map("bits_given")
+  monthsSubscribed Int      @default(0) @map("months_subscribed")
+  firstSeenAt      DateTime @default(now()) @map("first_seen_at")
+  lastSeenAt       DateTime @default(now()) @map("last_seen_at")
+  notes            String?  @db.Text
+
+  org      Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  chatLogs ChatLogEntry[]
+
+  @@unique([orgId, platform, platformUserId])
+  @@index([orgId])
+  @@index([platform])
+  @@map("community_members")
+}
+
+model ChatLogEntry {
+  id              String   @id @default(cuid())
+  orgId           String   @map("org_id")
+  memberId        String?  @map("member_id")
+  streamSessionId String?  @map("stream_session_id")
+  platform        String
+  username        String
+  content         String   @db.Text
+  badges          String[] @default([])
+  sentiment       String?
+  flagged         Boolean  @default(false)
+  timestamp       DateTime @default(now())
+
+  org    Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  member CommunityMember? @relation(fields: [memberId], references: [id])
+
+  @@index([orgId])
+  @@index([platform])
+  @@index([timestamp])
+  @@index([flagged])
+  @@index([memberId])
+  @@index([streamSessionId])
+  @@index([orgId, platform, timestamp])
+  @@map("chat_log_entries")
+}
+
+model Milestone {
+  id           String    @id @default(cuid())
+  orgId        String    @map("org_id")
+  title        String
+  description  String?   @db.Text
+  platform     String?
+  targetValue  Int       @map("target_value")
+  currentValue Int       @default(0) @map("current_value")
+  metricType   String    @map("metric_type") // followers|subscribers|views|revenue
+  reachedAt    DateTime? @map("reached_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@map("milestones")
+}
+
+// ─────────────────────────────────────────────────────────────
+// MODERATION
+// ─────────────────────────────────────────────────────────────
+
+model FlaggedMessage {
+  id              String    @id @default(cuid())
+  orgId           String    @map("org_id")
+  platform        String
+  streamSessionId String?   @map("stream_session_id")
+  platformUserId  String    @map("platform_user_id")
+  username        String
+  content         String    @db.Text
+  reason          String    // spam|hate_speech|harassment|caps|links|custom
+  confidence      Decimal   @db.Decimal(5, 4)
+  status          String    @default("pending") // pending|actioned|dismissed|false_positive
+  actionTaken     String?   @map("action_taken") // timeout|ban|delete|warn
+  reviewedBy      String?   @map("reviewed_by")
+  reviewedAt      DateTime? @map("reviewed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([status])
+  @@index([platform])
+  @@index([orgId, status])
+  @@map("flagged_messages")
+}
+
+model ModerationRule {
+  id              String   @id @default(cuid())
+  orgId           String   @map("org_id")
+  name            String
+  type            String   // keyword|pattern|spam|caps|links|new_account
+  pattern         String?
+  action          String   // timeout|ban|delete|warn|flag
+  timeoutDuration Int?     @map("timeout_duration")
+  isEnabled       Boolean  @default(true) @map("is_enabled")
+  triggerCount    Int      @default(0) @map("trigger_count")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@map("moderation_rules")
+}
+
+model BannedUser {
+  id             String    @id @default(cuid())
+  orgId          String    @map("org_id")
+  platform       String
+  platformUserId String    @map("platform_user_id")
+  username       String
+  reason         String?
+  bannedBy       String?   @map("banned_by")
+  bannedAt       DateTime  @default(now()) @map("banned_at")
+  expiresAt      DateTime? @map("expires_at")
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, platform, platformUserId])
+  @@index([orgId])
+  @@map("banned_users")
+}
+
+// ─────────────────────────────────────────────────────────────
+// REVENUE & SPONSORS
+// ─────────────────────────────────────────────────────────────
+
+model Sponsor {
+  id           String    @id @default(cuid())
+  orgId        String    @map("org_id")
+  name         String
+  logoUrl      String?   @map("logo_url")
+  contactEmail String?   @map("contact_email")
+  dealValue    BigInt    @default(0) @map("deal_value") // cents
+  status       String    @default("active") // active|completed|pending|cancelled
+  startDate    DateTime? @map("start_date")
+  endDate      DateTime? @map("end_date")
+  notes        String?   @db.Text
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  org          Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  deliverables SponsorDeliverable[]
+
+  @@index([orgId])
+  @@index([status])
+  @@map("sponsors")
+}
+
+model SponsorDeliverable {
+  id          String    @id @default(cuid())
+  sponsorId   String    @map("sponsor_id")
+  title       String
+  description String?   @db.Text
+  dueDate     DateTime? @map("due_date")
+  completedAt DateTime? @map("completed_at")
+  status      String    @default("pending") // pending|completed|overdue
+
+  sponsor Sponsor @relation(fields: [sponsorId], references: [id], onDelete: Cascade)
+
+  @@index([sponsorId])
+  @@map("sponsor_deliverables")
+}
+
+// ─────────────────────────────────────────────────────────────
+// NOTIFICATIONS (persistent)
+// ─────────────────────────────────────────────────────────────
+
+model Notification {
+  id        String    @id @default(cuid())
+  orgId     String    @map("org_id")
+  userId    String?   @map("user_id")
+  type      String
+  title     String
+  body      String?   @db.Text
+  data      Json      @default("{}")
+  isRead    Boolean   @default(false) @map("is_read")
+  createdAt DateTime  @default(now()) @map("created_at")
+  readAt    DateTime? @map("read_at")
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@index([userId])
+  @@index([orgId, isRead])
+  @@map("notifications")
+}
+
+model NotificationPref {
+  id     String  @id @default(cuid())
+  orgId  String  @map("org_id")
+  userId String  @map("user_id")
+  type   String
+  inApp  Boolean @default(true) @map("in_app")
+  email  Boolean @default(false)
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, userId, type])
+  @@index([orgId, userId])
+  @@map("notification_prefs")
+}
+
+// ─────────────────────────────────────────────────────────────
+// SEO
+// ─────────────────────────────────────────────────────────────
+
+model SeoScore {
+  id          String   @id @default(cuid())
+  orgId       String   @map("org_id")
+  platform    String
+  contentId   String?  @map("content_id")
+  title       String?
+  score       Int      @default(0)
+  keywords    String[] @default([])
+  suggestions String[] @default([])
+  fetchedAt   DateTime @default(now()) @map("fetched_at")
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([platform])
+  @@index([orgId, platform])
+  @@map("seo_scores")
+}
+
+// ─────────────────────────────────────────────────────────────
+// COMPETITORS
+// ─────────────────────────────────────────────────────────────
+
+model Competitor {
+  id          String    @id @default(cuid())
+  orgId       String    @map("org_id")
+  platform    String
+  channelName String    @map("channel_name")
+  profileUrl  String?   @map("profile_url")
+  followers   BigInt    @default(0)
+  avgViews    BigInt    @default(0) @map("avg_views")
+  lastChecked DateTime? @map("last_checked")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, platform, channelName])
+  @@index([orgId])
+  @@map("competitors")
+}
+
+// ─────────────────────────────────────────────────────────────
+// WORKFLOWS
+// ─────────────────────────────────────────────────────────────
+
+model Workflow {
+  id            String   @id @default(cuid())
+  orgId         String   @map("org_id")
+  name          String
+  description   String?  @db.Text
+  trigger       String   @default("manual") // manual|schedule|webhook|event
+  triggerConfig Json     @default("{}") @map("trigger_config")
+  steps         Json     @default("[]")
+  isEnabled     Boolean  @default(true) @map("is_enabled")
+  runsTotal     Int      @default(0) @map("runs_total")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  org  Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  runs WorkflowRun[]
+
+  @@index([orgId])
+  @@map("workflows")
+}
+
+model WorkflowRun {
+  id          String    @id @default(cuid())
+  workflowId  String    @map("workflow_id")
+  orgId       String    @map("org_id")
+  status      String    @default("pending") // pending|running|done|failed|cancelled
+  triggeredBy String    @default("manual") @map("triggered_by") // manual|schedule|event
+  input       Json      @default("{}")
+  output      Json?
+  error       String?   @db.Text
+  startedAt   DateTime? @map("started_at")
+  finishedAt  DateTime? @map("finished_at")
+  completedAt DateTime? @map("completed_at")
+  durationMs  Int?      @map("duration_ms")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  workflow Workflow     @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId])
+  @@index([orgId])
+  @@index([status])
+  @@map("workflow_runs")
+}
+
+// ─────────────────────────────────────────────────────────────
+// TEAM INVITES
+// ─────────────────────────────────────────────────────────────
+
+model TeamInvite {
+  id         String    @id @default(cuid())
+  orgId      String    @map("org_id")
+  email      String
+  role       String    @default("viewer")
+  status     String    @default("pending") // pending | accepted | revoked
+  invitedBy  String    @map("invited_by")
+  token      String    @unique
+  expiresAt  DateTime  @map("expires_at")
+  acceptedAt DateTime? @map("accepted_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, email])
+  @@index([orgId])
+  @@index([email])
+  @@index([token])
+  @@map("team_invites")
+}
+
+// ─────────────────────────────────────────────────────────────
+// BILLING
+// ─────────────────────────────────────────────────────────────
+
+model Billing {
+  id                   String    @id @default(cuid())
+  orgId                String    @unique @map("org_id")
+  plan                 String    @default("free") // free | starter | pro | agency
+  status               String    @default("active") // active | canceled | past_due
+  currentPeriodStart   DateTime  @map("current_period_start")
+  currentPeriodEnd     DateTime  @map("current_period_end")
+  canceledAt           DateTime? @map("canceled_at")
+  stripeCustomerId     String?   @map("stripe_customer_id")
+  stripeSubscriptionId String?   @map("stripe_subscription_id")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  invoices Invoice[]
+
+  @@map("billing")
+}
+
+model Invoice {
+  id              String    @id @default(cuid())
+  orgId           String    @map("org_id")
+  billingId       String?   @map("billing_id")
+  amount          Decimal   @db.Decimal(10, 2)
+  currency        String    @default("usd")
+  status          String    @default("paid") // paid | open | void
+  description     String?
+  periodStart     DateTime? @map("period_start")
+  periodEnd       DateTime? @map("period_end")
+  stripeInvoiceId String?   @map("stripe_invoice_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  org     Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  billing Billing?     @relation(fields: [billingId], references: [id])
+
+  @@index([orgId])
+  @@index([createdAt])
+  @@map("invoices")
+}
+
+// ─────────────────────────────────────────────────────────────
+// USER MEMORY  (per-user persistent AI context)
+// ─────────────────────────────────────────────────────────────
+
+model UserMemory {
+  id        String   @id @default(cuid())
+  orgId     String   @map("org_id")
+  userId    String?  @map("user_id")  // null = org-level memory
+  key       String                    // e.g. "streaming_schedule", "preferred_games", "tone"
+  value     String   @db.Text
+  source    String   @default("auto") // auto (AI-extracted) | manual (user-set)
+  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, userId, key])
+  @@index([orgId])
+  @@index([userId])
+  @@map("user_memories")
 }

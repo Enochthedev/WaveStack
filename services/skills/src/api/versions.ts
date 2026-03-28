@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { db } from "../shared/db";
 import { skillDefinitionSchema } from "../engine/validator";
+import { requireOrg, getOrgId } from "../shared/middleware";
 
 const createVersionSchema = z.object({
   version: z.string().regex(/^\d+\.\d+\.\d+$/), // Semver validation
@@ -10,12 +11,20 @@ const createVersionSchema = z.object({
   }),
   inputSchema: z.any().optional(),
   outputMapping: z.any().optional(),
-  isLatest: z.boolean().default(false),
+  isLatest: z.boolean().default(true),
 });
 
 export async function versionsRoutes(fastify: FastifyInstance) {
+  fastify.addHook("preHandler", requireOrg);
+
   fastify.post("/:id/versions", async (request, reply) => {
+    const orgId = getOrgId(request);
     const { id: skillId } = z.object({ id: z.string() }).parse(request.params);
+
+    // Ensure the skill belongs to the caller's org
+    const skill = await db.skill.findFirst({ where: { id: skillId, orgId } });
+    if (!skill) return reply.status(404).send({ error: "Skill not found" });
+
     const body = createVersionSchema.parse(request.body);
 
     if (body.isLatest) {
@@ -24,7 +33,6 @@ export async function versionsRoutes(fastify: FastifyInstance) {
         data: { isLatest: false },
       });
     }
-
     const version = await db.skillVersion.create({
       data: {
         skillId,
@@ -40,7 +48,11 @@ export async function versionsRoutes(fastify: FastifyInstance) {
   });
 
   fastify.get("/:id/versions", async (request, reply) => {
+    const orgId = getOrgId(request);
     const { id: skillId } = z.object({ id: z.string() }).parse(request.params);
+    const skill = await db.skill.findFirst({ where: { id: skillId, orgId } });
+    if (!skill) return reply.status(404).send({ error: "Skill not found" });
+
     const versions = await db.skillVersion.findMany({
       where: { skillId },
       orderBy: { createdAt: "desc" },

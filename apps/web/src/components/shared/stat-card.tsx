@@ -2,7 +2,8 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { LucideIcon, TrendingUp, TrendingDown } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { TrendingUp, TrendingDown } from "lucide-react";
 import { Sensitive } from "@/lib/streamer-mode";
 
 interface StatCardProps {
@@ -37,20 +38,18 @@ export function StatCard({
             <span
               className={cn(
                 "flex items-center text-xs font-medium",
-                trend === "up"      && "text-green-500",
-                trend === "down"    && "text-red-500",
-                trend === "neutral" && "text-muted-foreground"
+                trend === "up" && "text-green-500",
+                trend === "down" && "text-red-500",
+                trend === "neutral" && "text-muted-foreground",
               )}
             >
-              {trend === "up"   && <TrendingUp   className="mr-0.5 h-3 w-3" />}
-              {trend === "down" && <TrendingDown  className="mr-0.5 h-3 w-3" />}
+              {trend === "up" && <TrendingUp className="mr-0.5 h-3 w-3" />}
+              {trend === "down" && <TrendingDown className="mr-0.5 h-3 w-3" />}
               <Sensitive>{change}</Sensitive>
             </span>
           )}
         </div>
-        {description && (
-          <p className="mt-1 text-xs text-muted-foreground">{description}</p>
-        )}
+        {description && <p className="mt-1 text-xs text-muted-foreground">{description}</p>}
       </CardContent>
     </Card>
   );

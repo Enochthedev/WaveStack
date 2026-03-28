@@ -1,10 +1,15 @@
 // Production-ready keypair management with persistent storage
-import { generateKeyPairSync, createPrivateKey, createPublicKey } from 'crypto';
-import { exportJWK } from 'jose';
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
-import { join } from 'path';
+import { generateKeyPairSync, createPublicKey } from "crypto";
+import { exportJWK } from "jose";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
+import { join } from "path";
 
-let _pair: { kid: string, priv: string, pub: string, jwk: any } | null = null;
+let _pair: { kid: string; priv: string; pub: string; jwk: any } | null = null;
+
+/** Reset cached keypair — use in tests only to force re-generation. */
+export function resetKeypair() {
+  _pair = null;
+}
 
 /**
  * Get or generate RSA keypair for JWT signing
@@ -16,24 +21,24 @@ export async function getKeypair() {
   if (_pair) return _pair;
 
   const keysDir = process.env.AUTH_KEYS_DIR;
-  const kid = process.env.AUTH_KEY_ID || 'wavestack-1';
+  const kid = process.env.AUTH_KEY_ID || "wavestack-1";
 
   // Production mode: load from disk or generate and persist
   if (keysDir) {
-    const privPath = join(keysDir, 'jwt-private.pem');
-    const pubPath = join(keysDir, 'jwt-public.pem');
+    const privPath = join(keysDir, "jwt-private.pem");
+    const pubPath = join(keysDir, "jwt-public.pem");
 
     // Try to load existing keys
     if (existsSync(privPath) && existsSync(pubPath)) {
       console.log(`[auth] Loading RSA keypair from ${keysDir}`);
-      const privPem = readFileSync(privPath, 'utf-8');
-      const pubPem = readFileSync(pubPath, 'utf-8');
+      const privPem = readFileSync(privPath, "utf-8");
+      const pubPem = readFileSync(pubPath, "utf-8");
 
       const publicKey = createPublicKey(pubPem);
       const jwk = await exportJWK(publicKey as any);
       jwk.kid = kid;
-      jwk.alg = 'RS256';
-      jwk.kty = 'RSA';
+      jwk.alg = "RS256";
+      jwk.kty = "RSA";
 
       _pair = { kid, priv: privPem, pub: pubPem, jwk };
       console.log(`[auth] Loaded keypair with kid=${kid}`);
@@ -46,20 +51,20 @@ export async function getKeypair() {
       mkdirSync(keysDir, { recursive: true });
     }
 
-    const { publicKey, privateKey } = generateKeyPairSync('rsa', {
+    const { publicKey, privateKey } = generateKeyPairSync("rsa", {
       modulusLength: 2048,
     });
 
-    const privPem = privateKey.export({ type: 'pkcs1', format: 'pem' }).toString();
-    const pubPem = publicKey.export({ type: 'pkcs1', format: 'pem' }).toString();
+    const privPem = privateKey.export({ type: "pkcs1", format: "pem" }).toString();
+    const pubPem = publicKey.export({ type: "pkcs1", format: "pem" }).toString();
 
     writeFileSync(privPath, privPem, { mode: 0o600 }); // Only owner can read/write
-    writeFileSync(pubPath, pubPem, { mode: 0o644 });  // Public key can be read by all
+    writeFileSync(pubPath, pubPem, { mode: 0o644 }); // Public key can be read by all
 
     const jwk = await exportJWK(publicKey as any);
     jwk.kid = kid;
-    jwk.alg = 'RS256';
-    jwk.kty = 'RSA';
+    jwk.alg = "RS256";
+    jwk.kty = "RSA";
 
     _pair = { kid, priv: privPem, pub: pubPem, jwk };
     console.log(`[auth] Generated and saved new keypair to ${keysDir} with kid=${kid}`);
@@ -67,19 +72,19 @@ export async function getKeypair() {
   }
 
   // Development mode: generate ephemeral keypair (not persisted)
-  console.warn('[auth] ⚠️  Generating ephemeral RSA keypair (not recommended for production)');
-  console.warn('[auth] ⚠️  Set AUTH_KEYS_DIR environment variable to persist keys across restarts');
+  console.warn("[auth] ⚠️  Generating ephemeral RSA keypair (not recommended for production)");
+  console.warn("[auth] ⚠️  Set AUTH_KEYS_DIR environment variable to persist keys across restarts");
 
-  const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const { publicKey, privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
   const jwk = await exportJWK(publicKey as any);
   jwk.kid = kid;
-  jwk.alg = 'RS256';
-  jwk.kty = 'RSA';
+  jwk.alg = "RS256";
+  jwk.kty = "RSA";
 
   _pair = {
     kid,
-    priv: privateKey.export({ type: 'pkcs1', format: 'pem' }).toString(),
-    pub: publicKey.export({ type: 'pkcs1', format: 'pem' }).toString(),
+    priv: privateKey.export({ type: "pkcs1", format: "pem" }).toString(),
+    pub: publicKey.export({ type: "pkcs1", format: "pem" }).toString(),
     jwk,
   };
   return _pair;
