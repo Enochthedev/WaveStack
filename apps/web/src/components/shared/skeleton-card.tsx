@@ -1,10 +1,11 @@
+import type React from "react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
 // ─── Base skeleton pulse ──────────────────────────────────────────────────────
 
-function Bone({ className }: { className?: string }) {
-  return <div className={cn("animate-pulse rounded-md bg-muted/60", className)} />;
+function Bone({ className, style }: { className?: string; style?: React.CSSProperties }) {
+  return <div className={cn("animate-pulse rounded-md bg-muted/60", className)} style={style} />;
 }
 
 // ─── Generic stat card skeleton ───────────────────────────────────────────────
