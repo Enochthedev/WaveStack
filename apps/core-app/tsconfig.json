@@ -4,35 +4,21 @@
     "module": "CommonJS",
     "moduleResolution": "Node",
     "outDir": "dist",
+    "rootDir": "src",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "types": [
-      "node"
-    ],
+    "ignoreDeprecations": "6.0",
+    "types": ["node"],
     "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "src/*"
-      ],
-      "@shared/*": [
-        "src/shared/*"
-      ],
-      "@modules/*": [
-        "src/modules/*"
-      ],
-      "@config/*": [
-        "src/config/*"
-      ],
-      "@routes/*": [
-        "src/routes/*"
-      ],
-      "@auth/*": [
-        "src/modules/auth/*"
-      ]
+      "@/*": ["src/*"],
+      "@shared/*": ["src/shared/*"],
+      "@modules/*": ["src/modules/*"],
+      "@config/*": ["src/config/*"],
+      "@routes/*": ["src/routes/*"],
+      "@auth/*": ["src/modules/auth/*"]
     }
   },
-  "include": [
-    "src"
-  ]
+  "include": ["src"]
 }
