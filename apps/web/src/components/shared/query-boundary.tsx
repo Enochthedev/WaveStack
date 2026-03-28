@@ -21,6 +21,7 @@
  */
 
 import type { ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 import { EmptyState, type EmptyStatePreset } from "./empty-state";
 import { ErrorState } from "./error-state";
 import { CardSkeleton } from "./skeleton-card";
@@ -46,7 +47,7 @@ interface QueryBoundaryProps {
   emptyPreset?: EmptyStatePreset;
   emptyTitle?: string;
   emptySubtitle?: string;
-  emptyIcon?: React.ElementType;
+  emptyIcon?: LucideIcon;
   emptyCta?: { label: string; onClick: () => void };
   emptySecondaryCta?: { label: string; onClick: () => void };
   /** Fully custom empty node (overrides all emptyXxx props) */
