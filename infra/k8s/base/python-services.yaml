@@ -1,0 +1,126 @@
+# ── Auto-mod ──────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auto-mod
+  namespace: wavestack
+  labels:
+    app: auto-mod
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: auto-mod
+  template:
+    metadata:
+      labels:
+        app: auto-mod
+    spec:
+      containers:
+        - name: auto-mod
+          image: wavestack/auto-mod:latest
+          ports:
+            - containerPort: 8700
+          envFrom:
+            - configMapRef:
+                name: wavestack-config
+            - secretRef:
+                name: wavestack-secrets
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8700
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auto-mod
+  namespace: wavestack
+spec:
+  selector:
+    app: auto-mod
+  ports:
+    - port: 8700
+      targetPort: 8700
+---
+# ── Knowledge ─────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: knowledge
+  namespace: wavestack
+  labels:
+    app: knowledge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: knowledge
+  template:
+    metadata:
+      labels:
+        app: knowledge
+    spec:
+      containers:
+        - name: knowledge
+          image: wavestack/knowledge:latest
+          ports:
+            - containerPort: 3900
+          envFrom:
+            - configMapRef:
+                name: wavestack-config
+            - secretRef:
+                name: wavestack-secrets
+          volumeMounts:
+            - name: chroma-data
+              mountPath: /data/chroma
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3900
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 2Gi
+      volumes:
+        - name: chroma-data
+          persistentVolumeClaim:
+            claimName: chroma-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: knowledge
+  namespace: wavestack
+spec:
+  selector:
+    app: knowledge
+  ports:
+    - port: 3900
+      targetPort: 3900
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: chroma-pvc
+  namespace: wavestack
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi

@@ -8,7 +8,6 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -32,7 +31,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Upload, MoreHorizontal, Eye, Download, Trash2, Loader2, Film, ImageIcon } from "lucide-react";
+import {
+  Upload,
+  MoreHorizontal,
+  Eye,
+  Download,
+  Trash2,
+  Loader2,
+  Film,
+  ImageIcon,
+} from "lucide-react";
 
 type Asset = (typeof initialAssets)[number];
 
@@ -47,12 +55,12 @@ function formatDuration(seconds: number) {
 }
 
 export default function ContentPage() {
-  const [assets, setAssets]         = useState<Asset[]>(initialAssets);
+  const [assets, setAssets] = useState<Asset[]>(initialAssets);
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [uploading, setUploading]   = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Asset | null>(null);
   const [previewAsset, setPreviewAsset] = useState<Asset | null>(null);
-  const [dragOver, setDragOver]     = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -119,7 +127,10 @@ export default function ContentPage() {
         className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
           dragOver ? "border-primary bg-primary/5" : "border-border"
         }`}
-        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragOver(true);
+        }}
         onDragLeave={() => setDragOver(false)}
         onDrop={handleFileDrop}
         onClick={() => setUploadOpen(true)}
@@ -129,7 +140,8 @@ export default function ContentPage() {
       >
         <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
         <p className="text-sm text-muted-foreground">
-          Drag &amp; drop files here, or <span className="text-primary cursor-pointer underline">browse</span>
+          Drag &amp; drop files here, or{" "}
+          <span className="text-primary cursor-pointer underline">browse</span>
         </p>
         <p className="text-xs text-muted-foreground mt-1">MP4, MOV, JPG, PNG up to 2 GB</p>
       </div>
@@ -171,22 +183,27 @@ export default function ContentPage() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={() => setPreviewAsset(asset)}>
-                        <Eye className="h-4 w-4 mr-2" />Preview
+                        <Eye className="h-4 w-4 mr-2" />
+                        Preview
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => handleDownload(asset)}>
-                        <Download className="h-4 w-4 mr-2" />Download
+                        <Download className="h-4 w-4 mr-2" />
+                        Download
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="text-destructive focus:text-destructive"
                         onClick={() => setDeleteTarget(asset)}
                       >
-                        <Trash2 className="h-4 w-4 mr-2" />Delete
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <Badge variant="outline" className="text-xs">{asset.mimeType}</Badge>
+                  <Badge variant="outline" className="text-xs">
+                    {asset.mimeType}
+                  </Badge>
                   <StatusBadge status={asset.status} />
                 </div>
                 <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -200,7 +217,15 @@ export default function ContentPage() {
       </div>
 
       {/* Upload Dialog */}
-      <Dialog open={uploadOpen} onOpenChange={(open: boolean) => { if (!uploading) { setUploadOpen(open); if (!open) setSelectedFile(null); } }}>
+      <Dialog
+        open={uploadOpen}
+        onOpenChange={(open: boolean) => {
+          if (!uploading) {
+            setUploadOpen(open);
+            if (!open) setSelectedFile(null);
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Upload Asset</DialogTitle>
@@ -211,9 +236,17 @@ export default function ContentPage() {
                 dragOver ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
               }`}
               onClick={() => fileInputRef.current?.click()}
-              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
               onDragLeave={() => setDragOver(false)}
-              onDrop={(e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) setSelectedFile(f); }}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                const f = e.dataTransfer.files[0];
+                if (f) setSelectedFile(f);
+              }}
             >
               <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
               {selectedFile ? (
@@ -225,8 +258,12 @@ export default function ContentPage() {
                 </div>
               ) : (
                 <>
-                  <p className="text-sm text-muted-foreground">Click to browse or drag a file here</p>
-                  <p className="text-xs text-muted-foreground mt-1">MP4, MOV, JPG, PNG up to 2 GB</p>
+                  <p className="text-sm text-muted-foreground">
+                    Click to browse or drag a file here
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    MP4, MOV, JPG, PNG up to 2 GB
+                  </p>
                 </>
               )}
               <input
@@ -240,9 +277,16 @@ export default function ContentPage() {
 
             {selectedFile && (
               <div className="text-xs text-muted-foreground space-y-1 rounded-md border p-3">
-                <p><span className="font-medium">File:</span> {selectedFile.name}</p>
-                <p><span className="font-medium">Type:</span> {selectedFile.type}</p>
-                <p><span className="font-medium">Size:</span> {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</p>
+                <p>
+                  <span className="font-medium">File:</span> {selectedFile.name}
+                </p>
+                <p>
+                  <span className="font-medium">Type:</span> {selectedFile.type}
+                </p>
+                <p>
+                  <span className="font-medium">Size:</span>{" "}
+                  {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
+                </p>
               </div>
             )}
 
@@ -256,7 +300,14 @@ export default function ContentPage() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setUploadOpen(false); setSelectedFile(null); }} disabled={uploading}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setUploadOpen(false);
+                setSelectedFile(null);
+              }}
+              disabled={uploading}
+            >
               Cancel
             </Button>
             <Button onClick={handleUpload} disabled={uploading || !selectedFile}>
@@ -268,7 +319,10 @@ export default function ContentPage() {
       </Dialog>
 
       {/* Preview Dialog */}
-      <Dialog open={!!previewAsset} onOpenChange={(open: boolean) => !open && setPreviewAsset(null)}>
+      <Dialog
+        open={!!previewAsset}
+        onOpenChange={(open: boolean) => !open && setPreviewAsset(null)}
+      >
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="truncate">{previewAsset?.filename}</DialogTitle>
@@ -281,29 +335,53 @@ export default function ContentPage() {
             )}
           </div>
           <div className="grid grid-cols-2 gap-3 text-sm">
-            <div><p className="text-xs text-muted-foreground">Type</p><p>{previewAsset?.mimeType}</p></div>
-            <div><p className="text-xs text-muted-foreground">Size</p><p>{previewAsset && formatFileSize(previewAsset.sizeBytes)}</p></div>
+            <div>
+              <p className="text-xs text-muted-foreground">Type</p>
+              <p>{previewAsset?.mimeType}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Size</p>
+              <p>{previewAsset && formatFileSize(previewAsset.sizeBytes)}</p>
+            </div>
             {previewAsset?.duration && (
-              <div><p className="text-xs text-muted-foreground">Duration</p><p>{formatDuration(previewAsset.duration)}</p></div>
+              <div>
+                <p className="text-xs text-muted-foreground">Duration</p>
+                <p>{formatDuration(previewAsset.duration)}</p>
+              </div>
             )}
-            <div><p className="text-xs text-muted-foreground">Status</p>{previewAsset && <StatusBadge status={previewAsset.status} />}</div>
+            <div>
+              <p className="text-xs text-muted-foreground">Status</p>
+              {previewAsset && <StatusBadge status={previewAsset.status} />}
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPreviewAsset(null)}>Close</Button>
-            <Button onClick={() => { previewAsset && handleDownload(previewAsset); setPreviewAsset(null); }}>
-              <Download className="h-4 w-4 mr-2" />Download
+            <Button variant="outline" onClick={() => setPreviewAsset(null)}>
+              Close
+            </Button>
+            <Button
+              onClick={() => {
+                if (previewAsset) handleDownload(previewAsset);
+                setPreviewAsset(null);
+              }}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Delete Confirmation */}
-      <AlertDialog open={!!deleteTarget} onOpenChange={(open: boolean) => !open && setDeleteTarget(null)}>
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(open: boolean) => !open && setDeleteTarget(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete asset?</AlertDialogTitle>
             <AlertDialogDescription>
-              &ldquo;{deleteTarget?.filename}&rdquo; will be permanently deleted and cannot be recovered.
+              &ldquo;{deleteTarget?.filename}&rdquo; will be permanently deleted and cannot be
+              recovered.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

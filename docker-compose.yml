@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   # Database
@@ -531,6 +531,156 @@ services:
       - postgres
       - redis
     restart: unless-stopped
+
+  # ── Agent Orchestrator :3300 ──────────────────────────────────────────────────
+  agent-orchestrator:
+    build:
+      context: ./services/agent-orchestrator
+      dockerfile: Dockerfile
+    ports:
+      - "3300:3300"
+    environment:
+      - PORT=3300
+      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
+      - REDIS_URL=redis://redis:6379
+      - MCP_GATEWAY_URL=http://mcp-gateway:3100
+      - SKILLS_URL=http://skills:3200
+      - KNOWLEDGE_URL=http://knowledge:3400
+      - AI_PERSONALITY_URL=http://ai-personality:8200
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET:-dev-internal-secret}
+      - APPROVAL_TIMEOUT_HOURS=4
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:3300/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── MCP Gateway :3100 ─────────────────────────────────────────────────────────
+  mcp-gateway:
+    build:
+      context: ./services/mcp-gateway
+      dockerfile: Dockerfile
+    ports:
+      - "3100:3100"
+    environment:
+      - PORT=3100
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
+      - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET:-dev-internal-secret}
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
+  # ── Skills Service :3200 ──────────────────────────────────────────────────────
+  skills:
+    build:
+      context: ./services/skills
+      dockerfile: Dockerfile
+    ports:
+      - "3200:3200"
+    environment:
+      - PORT=3200
+      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
+      - REDIS_URL=redis://redis:6379
+      - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET:-dev-internal-secret}
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
+  # ── Knowledge (RAG) :3900 ─────────────────────────────────────────────────────
+  knowledge:
+    build:
+      context: ./services/knowledge
+      dockerfile: Dockerfile
+    ports:
+      - "3900:3900"
+    environment:
+      - PORT=3900
+      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
+      - REDIS_URL=redis://redis:6379
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      - postgres
+      - redis
+      - chromadb
+    restart: unless-stopped
+
+  # ── Model Router :3700 ────────────────────────────────────────────────────────
+  model-router:
+    build:
+      context: ./services/model-router
+      dockerfile: Dockerfile
+    ports:
+      - "3700:3700"
+    environment:
+      - PORT=3700
+      - REDIS_URL=redis://redis:6379
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - TOGETHER_API_KEY=${TOGETHER_API_KEY}
+      - CORE_API_URL=http://core-app:3000
+      - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET:-dev-internal-secret}
+    depends_on:
+      - redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:3700/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── Notifications :4000 ───────────────────────────────────────────────────────
+  notifications:
+    build:
+      context: ./services/notifications
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - REDIS_URL=redis://redis:6379
+      - EXPO_ACCESS_TOKEN=${EXPO_ACCESS_TOKEN}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET:-dev-internal-secret}
+    depends_on:
+      - redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:4000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── Stream Engine :3400 (Go/Fiber) ────────────────────────────────────────────
+  stream-engine:
+    build:
+      context: ./services/stream-engine
+      dockerfile: Dockerfile
+    ports:
+      - "3400:3400"
+    environment:
+      - PORT=3400
+      - REDIS_URL=redis://redis:6379
+      - CORE_API_URL=http://core-app:3000
+      - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET:-dev-internal-secret}
+    depends_on:
+      - redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3400/health > /dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   postgres_data:

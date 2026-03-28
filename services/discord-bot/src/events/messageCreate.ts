@@ -1,10 +1,17 @@
 /**
  * Message Create Event
- * Handles message economy and moderation
+ * Handles message economy, moderation, and RAG knowledge queries.
  */
 import { Events, Message, GuildMember } from 'discord.js';
 import { RedisClientType } from 'redis';
 import { Logger } from 'pino';
+import { KnowledgeService } from '../services/knowledge';
+
+// Module-level singleton created on first message (logger is stable per-process).
+let _knowledgeService: KnowledgeService | null = null;
+function getKnowledgeService(logger: Logger): KnowledgeService {
+  return (_knowledgeService ??= new KnowledgeService(logger));
+}
 
 module.exports = {
   name: Events.MessageCreate,
@@ -15,6 +22,25 @@ module.exports = {
 
     // Ignore DMs
     if (!message.guild) return;
+
+    // ── RAG knowledge query (highest priority — answer before moderation) ──
+    if (KnowledgeService.isKnowledgeQuery(message.content)) {
+      const question = KnowledgeService.extractQuery(message.content);
+      if (question.length > 0) {
+        try {
+          const ks = getKnowledgeService(logger);
+          const answer = await ks.query(question);
+          if (answer) {
+            await message.reply(KnowledgeService.formatReply(answer, question));
+          } else {
+            await message.reply("I couldn't find an answer to that. Try rephrasing your question.");
+          }
+        } catch (err) {
+          logger.error({ err }, '[knowledge] failed to reply');
+        }
+        return; // Don't process further
+      }
+    }
 
     // AI-powered auto-moderation (if enabled)
     if (process.env.USE_AI_MODERATION === 'true') {

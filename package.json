@@ -10,7 +10,29 @@
   "scripts": {
     "dev": "pnpm -C apps/core-app dev",
     "build": "pnpm -r build",
-    "lint": "pnpm -r lint || true",
-    "test": "pnpm -r test || true"
+    "lint": "pnpm -r lint",
+    "lint:fix": "pnpm -r lint:fix",
+    "typecheck": "pnpm -r typecheck",
+    "format": "prettier --write \"apps/**/src/**/*.{ts,tsx}\"",
+    "test": "pnpm -r test",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.0.0",
+    "lint-staged": "^15.0.0",
+    "prettier": "^3.0.0"
+  },
+  "lint-staged": {
+    "apps/core-app/src/**/*.{ts}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "apps/web/src/**/*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "**/*.{json,md,yaml,yml}": [
+      "prettier --write"
+    ]
   }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   CommandDialog,
@@ -53,45 +53,45 @@ import { useStreamerMode } from "@/lib/streamer-mode";
 
 const NAV_ITEMS = [
   // Pages
-  { label: "Dashboard",     href: "/dashboard",               icon: LayoutDashboard, group: "Pages"           },
-  { label: "Content",       href: "/content",                 icon: FolderOpen,      group: "Pages"           },
-  { label: "Clips",         href: "/clips",                   icon: Scissors,        group: "Pages"           },
-  { label: "Uploads",       href: "/uploads",                 icon: CloudUpload,     group: "Pages"           },
-  { label: "Publish",       href: "/publish",                 icon: Send,            group: "Pages"           },
-  { label: "Queue",         href: "/publish/queue",           icon: ListOrdered,     group: "Pages"           },
-  { label: "Schedule",      href: "/publish/schedule",        icon: Calendar,        group: "Pages"           },
-  { label: "Analytics",     href: "/analytics",               icon: BarChart3,       group: "Pages"           },
+  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, group: "Pages" },
+  { label: "Content", href: "/content", icon: FolderOpen, group: "Pages" },
+  { label: "Clips", href: "/clips", icon: Scissors, group: "Pages" },
+  { label: "Uploads", href: "/uploads", icon: CloudUpload, group: "Pages" },
+  { label: "Publish", href: "/publish", icon: Send, group: "Pages" },
+  { label: "Queue", href: "/publish/queue", icon: ListOrdered, group: "Pages" },
+  { label: "Schedule", href: "/publish/schedule", icon: Calendar, group: "Pages" },
+  { label: "Analytics", href: "/analytics", icon: BarChart3, group: "Pages" },
   // Creator
-  { label: "Stream",        href: "/stream",                  icon: Radio,           group: "Creator"         },
-  { label: "Overlays",      href: "/stream/overlays",         icon: Layers,          group: "Creator"         },
-  { label: "Create Clip",   href: "/clips/create",            icon: Plus,            group: "Creator"         },
-  { label: "Community",     href: "/community",               icon: Users,           group: "Creator"         },
-  { label: "Monetization",  href: "/monetization",            icon: DollarSign,      group: "Creator"         },
-  { label: "SEO",           href: "/seo",                     icon: Search,          group: "Creator"         },
-  { label: "Competitors",   href: "/competitors",             icon: Swords,          group: "Creator"         },
+  { label: "Stream", href: "/stream", icon: Radio, group: "Creator" },
+  { label: "Overlays", href: "/stream/overlays", icon: Layers, group: "Creator" },
+  { label: "Create Clip", href: "/clips/create", icon: Plus, group: "Creator" },
+  { label: "Community", href: "/community", icon: Users, group: "Creator" },
+  { label: "Monetization", href: "/monetization", icon: DollarSign, group: "Creator" },
+  { label: "SEO", href: "/seo", icon: Search, group: "Creator" },
+  { label: "Competitors", href: "/competitors", icon: Swords, group: "Creator" },
   // AI & Automation
-  { label: "Agents",        href: "/agents",                  icon: Brain,           group: "AI & Automation" },
-  { label: "Agent Tasks",   href: "/agents/tasks",            icon: ListChecks,      group: "AI & Automation" },
-  { label: "Agent Chat",    href: "/agents/chat",             icon: MessageSquare,   group: "AI & Automation" },
-  { label: "Skills",        href: "/skills",                  icon: Sparkles,        group: "AI & Automation" },
-  { label: "Workflows",     href: "/workflows",               icon: Workflow,        group: "AI & Automation" },
-  { label: "MCP Tools",     href: "/mcp",                     icon: Wrench,          group: "AI & Automation" },
-  { label: "Knowledge",     href: "/knowledge",               icon: BookOpen,        group: "AI & Automation" },
-  { label: "Sandbox",       href: "/sandbox",                 icon: FlaskConical,    group: "AI & Automation" },
+  { label: "Agents", href: "/agents", icon: Brain, group: "AI & Automation" },
+  { label: "Agent Tasks", href: "/agents/tasks", icon: ListChecks, group: "AI & Automation" },
+  { label: "Agent Chat", href: "/agents/chat", icon: MessageSquare, group: "AI & Automation" },
+  { label: "Skills", href: "/skills", icon: Sparkles, group: "AI & Automation" },
+  { label: "Workflows", href: "/workflows", icon: Workflow, group: "AI & Automation" },
+  { label: "MCP Tools", href: "/mcp", icon: Wrench, group: "AI & Automation" },
+  { label: "Knowledge", href: "/knowledge", icon: BookOpen, group: "AI & Automation" },
+  { label: "Sandbox", href: "/sandbox", icon: FlaskConical, group: "AI & Automation" },
   // Platform
-  { label: "Bots",          href: "/bots",                    icon: Bot,             group: "Platform"        },
-  { label: "Moderation",    href: "/moderation",              icon: Shield,          group: "Platform"        },
-  { label: "Team",          href: "/team",                    icon: UsersRound,      group: "Platform"        },
-  { label: "Notifications", href: "/notifications",           icon: Bell,            group: "Platform"        },
+  { label: "Bots", href: "/bots", icon: Bot, group: "Platform" },
+  { label: "Moderation", href: "/moderation", icon: Shield, group: "Platform" },
+  { label: "Team", href: "/team", icon: UsersRound, group: "Platform" },
+  { label: "Notifications", href: "/notifications", icon: Bell, group: "Platform" },
   // Settings
-  { label: "Settings",      href: "/settings",                icon: Settings,        group: "Settings"        },
-  { label: "Account",       href: "/settings/account",        icon: User,            group: "Settings"        },
-  { label: "Integrations",  href: "/settings/integrations",   icon: Link2,           group: "Settings"        },
-  { label: "Notifications", href: "/settings/notifications",  icon: Bell,            group: "Settings"        },
-  { label: "Security",      href: "/settings/security",       icon: Shield,          group: "Settings"        },
-  { label: "Billing",       href: "/settings/billing",        icon: CreditCard,      group: "Settings"        },
-  { label: "API Keys",      href: "/settings/api",            icon: KeyRound,        group: "Settings"        },
-  { label: "Appearance",    href: "/settings/appearance",     icon: Palette,         group: "Settings"        },
+  { label: "Settings", href: "/settings", icon: Settings, group: "Settings" },
+  { label: "Account", href: "/settings/account", icon: User, group: "Settings" },
+  { label: "Integrations", href: "/settings/integrations", icon: Link2, group: "Settings" },
+  { label: "Notifications", href: "/settings/notifications", icon: Bell, group: "Settings" },
+  { label: "Security", href: "/settings/security", icon: Shield, group: "Settings" },
+  { label: "Billing", href: "/settings/billing", icon: CreditCard, group: "Settings" },
+  { label: "API Keys", href: "/settings/api", icon: KeyRound, group: "Settings" },
+  { label: "Appearance", href: "/settings/appearance", icon: Palette, group: "Settings" },
 ] as const;
 
 const GROUPS = ["Pages", "Creator", "AI & Automation", "Platform", "Settings"] as const;
@@ -99,8 +99,8 @@ const GROUPS = ["Pages", "Creator", "AI & Automation", "Platform", "Settings"] a
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function CommandPalette() {
-  const [open, setOpen]   = useState(false);
-  const router            = useRouter();
+  const [open, setOpen] = useState(false);
+  const router = useRouter();
   const { enabled, toggle } = useStreamerMode();
 
   useEffect(() => {

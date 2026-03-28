@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Bell, Search, User, FlaskConical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SSEStatus } from "@/components/shared/sse-status";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,7 +31,7 @@ export function Topbar() {
         className="relative flex-1 max-w-md cursor-pointer"
         onClick={() => {
           document.dispatchEvent(
-            new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true })
+            new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }),
           );
         }}
       >
@@ -43,6 +44,7 @@ export function Topbar() {
       </div>
 
       <div className="ml-auto flex items-center gap-3">
+        <SSEStatus />
         {/* Bell with notification dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -64,7 +66,10 @@ export function Topbar() {
               </div>
             ) : (
               preview.map((n) => (
-                <DropdownMenuItem key={n.id} className="flex flex-col items-start gap-0.5 px-3 py-2 cursor-pointer">
+                <DropdownMenuItem
+                  key={n.id}
+                  className="flex flex-col items-start gap-0.5 px-3 py-2 cursor-pointer"
+                >
                   <span className="text-sm font-medium leading-tight">{n.title}</span>
                   <span className="text-xs text-muted-foreground line-clamp-1">{n.detail}</span>
                 </DropdownMenuItem>
@@ -72,7 +77,10 @@ export function Topbar() {
             )}
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link href="/notifications" className="flex justify-center py-2 text-xs text-primary font-medium cursor-pointer">
+              <Link
+                href="/notifications"
+                className="flex justify-center py-2 text-xs text-primary font-medium cursor-pointer"
+              >
                 View all notifications →
               </Link>
             </DropdownMenuItem>
@@ -82,10 +90,12 @@ export function Topbar() {
         {/* Role switcher (demo) */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className={cn(
-              "flex items-center gap-1.5 rounded-full border border-dashed px-2.5 py-1 text-xs font-medium transition-colors hover:bg-muted/50",
-              roleMeta.color
-            )}>
+            <button
+              className={cn(
+                "flex items-center gap-1.5 rounded-full border border-dashed px-2.5 py-1 text-xs font-medium transition-colors hover:bg-muted/50",
+                roleMeta.color,
+              )}
+            >
               <FlaskConical className="h-3 w-3 shrink-0" />
               <span className="hidden sm:inline">{roleMeta.label}</span>
             </button>
@@ -103,13 +113,17 @@ export function Topbar() {
                   onClick={() => setRole(r)}
                   className="flex items-start gap-2.5 px-3 py-2 cursor-pointer"
                 >
-                  <span className={cn(
-                    "mt-0.5 shrink-0 inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-semibold",
-                    m.color
-                  )}>
+                  <span
+                    className={cn(
+                      "mt-0.5 shrink-0 inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-semibold",
+                      m.color,
+                    )}
+                  >
                     {m.label}
                   </span>
-                  <span className="text-xs text-muted-foreground leading-tight">{m.description}</span>
+                  <span className="text-xs text-muted-foreground leading-tight">
+                    {m.description}
+                  </span>
                   {r === role && <span className="ml-auto text-primary text-xs">✓</span>}
                 </DropdownMenuItem>
               );
@@ -135,7 +149,9 @@ export function Topbar() {
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link href="/settings" className="cursor-pointer">Settings</Link>
+              <Link href="/settings" className="cursor-pointer">
+                Settings
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem>Sign out</DropdownMenuItem>

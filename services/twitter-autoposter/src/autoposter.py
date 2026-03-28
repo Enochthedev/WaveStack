@@ -4,30 +4,37 @@ Automatically posts AI-generated content to Twitter based on schedule
 """
 import asyncio
 import os
-from datetime import datetime, timedelta
-from typing import Optional, List
+from datetime import datetime
+from typing import Optional
+import httpx
 import tweepy
 from prisma import Prisma
 import redis.asyncio as redis
-import httpx
 from loguru import logger
 
 
 class TwitterAutoPoster:
-    """Automatically posts approved content to Twitter"""
+    """
+    Automatically posts approved content to Twitter.
+
+    Credential model:
+    - App-level (env): TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_BEARER_TOKEN
+      These are WaveStack's developer app credentials — never per-user.
+    - Per-org (DB):    access_token, access_secret stored in PlatformCredential,
+      fetched at post time via core-app's internal token endpoint.
+    """
 
     def __init__(self):
         self.db = Prisma()
         self.redis_client: Optional[redis.Redis] = None
-        self.twitter_client: Optional[tweepy.Client] = None
         self.ai_api_url = os.getenv("AI_PERSONALITY_URL", "http://ai-personality:8200")
+        self.core_api_url = os.getenv("CORE_API_URL", "http://core-app:3000/api")
+        self.internal_secret = os.getenv("INTERNAL_SERVICE_SECRET", "")
         self.running = False
 
-        # Twitter API v2 credentials
+        # App-level Twitter credentials (WaveStack developer app — NOT per-user)
         self.api_key = os.getenv("TWITTER_API_KEY")
         self.api_secret = os.getenv("TWITTER_API_SECRET")
-        self.access_token = os.getenv("TWITTER_ACCESS_TOKEN")
-        self.access_secret = os.getenv("TWITTER_ACCESS_SECRET")
         self.bearer_token = os.getenv("TWITTER_BEARER_TOKEN")
 
         # Configuration
@@ -35,40 +42,66 @@ class TwitterAutoPoster:
         self.auto_generate_enabled = os.getenv("AUTO_GENERATE_TWEETS", "false").lower() == "true"
         self.auto_post_enabled = os.getenv("AUTO_POST_ENABLED", "false").lower() == "true"
 
+    async def _get_org_for_user(self, user_id: str) -> Optional[str]:
+        """Resolve the primary orgId for a given userId via the DB."""
+        try:
+            member = await self.db.orgmember.find_first(
+                where={"userId": user_id},
+                order={"createdAt": "asc"},
+            )
+            return member.orgId if member else None
+        except Exception as exc:
+            logger.warning(f"Could not resolve org for user {user_id}: {exc}")
+            return None
+
+    async def _get_twitter_client_for_org(self, org_id: str) -> Optional[tweepy.Client]:
+        """
+        Fetch per-org Twitter credentials from core-app and build a tweepy Client.
+        Falls back to None if the org hasn't connected Twitter.
+        """
+        if not all([self.api_key, self.api_secret]):
+            logger.warning("App-level Twitter API key/secret not configured")
+            return None
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(
+                    f"{self.core_api_url}/v1/platforms/twitter/token",
+                    headers={
+                        "x-org-id": org_id,
+                        "x-internal-service": self.internal_secret,
+                    },
+                )
+                if resp.status_code != 200:
+                    logger.debug(f"No Twitter creds for org {org_id}: {resp.status_code}")
+                    return None
+                creds = resp.json()
+                return tweepy.Client(
+                    bearer_token=self.bearer_token,
+                    consumer_key=self.api_key,
+                    consumer_secret=self.api_secret,
+                    access_token=creds["accessToken"],
+                    access_token_secret=creds["refreshToken"],  # Twitter uses refreshToken field for access_secret
+                    wait_on_rate_limit=True,
+                )
+        except Exception as exc:
+            logger.warning(f"Failed to get Twitter client for org {org_id}: {exc}")
+            return None
+
     async def initialize(self):
         """Initialize connections"""
         logger.info("🚀 Initializing Twitter Auto-Poster...")
 
-        # Connect to database
         await self.db.connect()
         logger.info("✅ Connected to database")
 
-        # Connect to Redis
         redis_url = os.getenv("REDIS_URL", "redis://redis:6379")
         self.redis_client = redis.from_url(redis_url, decode_responses=True)
         await self.redis_client.ping()
         logger.info("✅ Connected to Redis")
-
-        # Initialize Twitter client
-        if all([self.api_key, self.api_secret, self.access_token, self.access_secret]):
-            self.twitter_client = tweepy.Client(
-                bearer_token=self.bearer_token,
-                consumer_key=self.api_key,
-                consumer_secret=self.api_secret,
-                access_token=self.access_token,
-                access_token_secret=self.access_secret,
-                wait_on_rate_limit=True
-            )
-            logger.info("✅ Twitter client initialized")
-        else:
-            logger.warning("⚠️  Twitter credentials not configured")
+        logger.info("✅ Twitter Auto-Poster ready (per-org credentials fetched at post time)")
 
     async def start(self):
         """Start the auto-poster loop"""
-        if not self.twitter_client:
-            logger.error("❌ Twitter client not initialized. Cannot start.")
-            return
-
         self.running = True
         logger.info(f"🔄 Starting auto-poster (interval: {self.post_interval_minutes}m)")
 
@@ -100,16 +133,15 @@ class TwitterAutoPoster:
         try:
             now = datetime.utcnow()
 
-            # Get content scheduled for posting
             scheduled_content = await self.db.generatedcontent.find_many(
                 where={
                     "platform": "twitter",
                     "status": "scheduled",
                     "approved": True,
-                    "scheduledFor": {"lte": now}
+                    "scheduledFor": {"lte": now},
                 },
                 order_by={"scheduledFor": "asc"},
-                take=5  # Post up to 5 tweets at a time
+                take=5,
             )
 
             if not scheduled_content:
@@ -120,20 +152,28 @@ class TwitterAutoPoster:
 
             for content in scheduled_content:
                 success = await self.post_tweet(content)
-
                 if success:
-                    await asyncio.sleep(5)  # Wait 5 seconds between posts
+                    await asyncio.sleep(5)
 
         except Exception as e:
             logger.error(f"Error posting scheduled content: {e}", exc_info=True)
 
     async def post_tweet(self, content) -> bool:
-        """Post a single tweet"""
+        """Post a single tweet using the org's stored Twitter credentials."""
         try:
-            # Post to Twitter
-            response = self.twitter_client.create_tweet(
-                text=content.generatedText
-            )
+            # Resolve org from the content's userId
+            org_id = await self._get_org_for_user(content.userId)
+            if not org_id:
+                logger.warning(f"No org found for user {content.userId}, skipping tweet")
+                return False
+
+            # Get a per-org Twitter client using stored credentials
+            twitter_client = await self._get_twitter_client_for_org(org_id)
+            if not twitter_client:
+                logger.warning(f"No Twitter credentials for org {org_id}, skipping tweet")
+                return False
+
+            response = twitter_client.create_tweet(text=content.generatedText)
 
             if response.data:
                 tweet_id = response.data["id"]

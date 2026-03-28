@@ -22,35 +22,41 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# CORS — restrict origins in production
+_origins = (
+    ["*"] if settings.ENV == "development"
+    else [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type", "Authorization", "X-Internal-Service", "X-Org-Id"],
 )
 
 app.include_router(moderation.router)
 
 
+@app.get("/health", tags=["System"])
+async def health_check():
+    """Health check endpoint for k8s liveness/readiness probes."""
+    return {"status": "ok", "service": "auto-mod"}
+
+
+@app.get("/ready", tags=["System"])
+async def readiness_check():
+    """Readiness check — verifies dependencies are available."""
+    return {"ready": True, "service": "auto-mod"}
+
+
 @app.on_event("startup")
 async def startup_event():
-    logger.info("🚀 Starting Auto-Moderation Service")
-
-    logger.info("Moderation features:")
-    logger.info("  ✅ Toxicity detection (Detoxify + AI)")
-    logger.info("  ✅ Spam detection")
-    logger.info("  ✅ Banned words/phrases filter")
-    logger.info("  ✅ Link safety checking")
-    logger.info("  ✅ Repeat message detection")
-    logger.info("  ✅ Role-based whitelisting")
-
-    logger.info(f"Toxicity threshold: {settings.TOXICITY_THRESHOLD}")
-    logger.info(f"Spam threshold: {settings.SPAM_THRESHOLD}")
-    logger.info(f"Auto-delete: {settings.AUTO_DELETE}")
-    logger.info(f"Auto-timeout: {settings.AUTO_TIMEOUT}")
-
-    logger.info("✅ Auto-Moderation ready")
+    logger.info("Starting Auto-Moderation Service")
+    logger.info("Toxicity threshold: %s", settings.TOXICITY_THRESHOLD)
+    logger.info("Spam threshold: %s", settings.SPAM_THRESHOLD)
+    logger.info("Auto-Moderation ready")
 
 
 @app.get("/")

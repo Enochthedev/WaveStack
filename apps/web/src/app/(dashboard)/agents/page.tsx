@@ -2,7 +2,13 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { agents, agentTasks as initialTasks } from "@/lib/mock-data";
+import { agents as mockAgents, agentTasks as mockTasks } from "@/lib/mock-data";
+import {
+  useAgentConfig,
+  useUpdateAgentConfig,
+  useApprovals,
+  useActOnApproval,
+} from "@/lib/hooks/use-agents";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
@@ -20,81 +26,97 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
-
-type AgentTask = (typeof initialTasks)[number];
+import type { AgentConfig, ApprovalRequest } from "@/lib/api";
 
 const autonomyLevels = ["manual", "copilot", "autopilot"] as const;
 
-export default function AgentsPage() {
-  const [agentStates, setAgentStates] = useState(
-    agents.map((a) => ({ ...a }))
-  );
-  const [tasks, setTasks] = useState<AgentTask[]>(initialTasks);
-  const [actioningTask, setActioningTask] = useState<string | null>(null);
+// Fallback shapes from mock data
+const fallbackAgents: AgentConfig[] = mockAgents.map((a) => ({
+  agentType: a.agentType,
+  name: a.name,
+  autonomyLevel: a.autonomyLevel as AgentConfig["autonomyLevel"],
+  isEnabled: a.isEnabled,
+  tasksCompleted: a.tasksCompleted,
+  tasksRunning: a.tasksRunning,
+  description: a.description,
+}));
 
-  // Autonomy change confirmation
+const fallbackApprovals: ApprovalRequest[] = mockTasks
+  .filter((t) => t.status === "awaiting_approval")
+  .map((t) => ({
+    id: t.id,
+    agentType: t.agentType,
+    taskId: t.id,
+    title: t.title,
+    urgency: "medium" as const,
+    createdAt: t.createdAt,
+  }));
+
+export default function AgentsPage() {
+  // Real API data
+  const { data: configData, isError: configError } = useAgentConfig();
+  const { data: approvalsData, isError: approvalsError } = useApprovals();
+  const updateConfig = useUpdateAgentConfig();
+  const actOnApproval = useActOnApproval();
+
+  // Use real data when available, fall back to mock
+  const agentConfigs: AgentConfig[] = configData ?? fallbackAgents;
+  const approvals: ApprovalRequest[] = approvalsData?.data ?? fallbackApprovals;
+
+  // Autopilot confirmation dialog
   const [pendingAutonomy, setPendingAutonomy] = useState<{
-    index: number;
-    level: string;
+    agentType: string;
+    name: string;
+    level: AgentConfig["autonomyLevel"];
   } | null>(null);
 
-  const pendingApprovals = tasks.filter((t) => t.status === "awaiting_approval");
-
-  function toggleEnabled(index: number) {
-    const agent = agentStates[index];
-    setAgentStates((prev) =>
-      prev.map((a, i) => (i === index ? { ...a, isEnabled: !a.isEnabled } : a))
-    );
-    toast.success(`${agent.name} ${agent.isEnabled ? "disabled" : "enabled"}`);
-  }
-
-  function requestAutonomyChange(index: number, level: string) {
-    const agent = agentStates[index];
+  function requestAutonomyChange(agent: AgentConfig, level: AgentConfig["autonomyLevel"]) {
     if (agent.autonomyLevel === level) return;
-    // Escalating to autopilot requires confirmation
     if (level === "autopilot") {
-      setPendingAutonomy({ index, level });
+      setPendingAutonomy({ agentType: agent.agentType, name: agent.name, level });
     } else {
-      applyAutonomy(index, level);
+      applyAutonomy(agent.agentType, level);
     }
   }
 
-  function applyAutonomy(index: number, level: string) {
-    const agent = agentStates[index];
-    setAgentStates((prev) =>
-      prev.map((a, i) => (i === index ? { ...a, autonomyLevel: level } : a))
-    );
-    toast.success(`${agent.name} set to ${level} mode`);
-  }
-
-  function confirmAutonomy() {
-    if (!pendingAutonomy) return;
-    applyAutonomy(pendingAutonomy.index, pendingAutonomy.level);
+  function applyAutonomy(agentType: string, level: AgentConfig["autonomyLevel"]) {
+    updateConfig.mutate({ agentType, patch: { autonomyLevel: level } });
     setPendingAutonomy(null);
   }
 
-  async function handleApprove(task: AgentTask) {
-    setActioningTask(task.id);
-    await new Promise((r) => setTimeout(r, 700));
-    setTasks((prev) => prev.filter((t) => t.id !== task.id));
-    setActioningTask(null);
-    toast.success(`Task approved: "${task.title}"`);
+  function toggleEnabled(agent: AgentConfig) {
+    updateConfig.mutate({
+      agentType: agent.agentType,
+      patch: { isEnabled: !agent.isEnabled },
+    });
+    // Optimistic feedback when backend is not available
+    if (configError) {
+      toast.success(`${agent.name} ${agent.isEnabled ? "disabled" : "enabled"}`);
+    }
   }
 
-  async function handleReject(task: AgentTask) {
-    setActioningTask(task.id);
-    await new Promise((r) => setTimeout(r, 500));
-    setTasks((prev) => prev.filter((t) => t.id !== task.id));
-    setActioningTask(null);
-    toast.success(`Task rejected: "${task.title}"`);
+  function handleApprove(approval: ApprovalRequest) {
+    actOnApproval.mutate({ id: approval.id, action: "approve" });
   }
+
+  function handleReject(approval: ApprovalRequest) {
+    actOnApproval.mutate({ id: approval.id, action: "reject" });
+  }
+
+  const pendingApprovals = approvals;
 
   return (
     <div className="space-y-8">
       <PageHeader title="AI Agents" description="Manage your autonomous AI agents" />
 
+      {(configError || approvalsError) && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-xs text-amber-600 dark:text-amber-400">
+          Backend offline — showing cached data. Changes may not persist.
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {agentStates.map((agent, index) => (
+        {agentConfigs.map((agent) => (
           <Card key={agent.agentType}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-base font-semibold">{agent.name}</CardTitle>
@@ -109,15 +131,15 @@ export default function AgentsPage() {
                   <span className="font-medium text-foreground">{agent.tasksCompleted}</span>
                 </span>
                 <span className="text-muted-foreground">
-                  Running:{" "}
-                  <span className="font-medium text-foreground">{agent.tasksRunning}</span>
+                  Running: <span className="font-medium text-foreground">{agent.tasksRunning}</span>
                 </span>
               </div>
 
               <div className="flex items-center gap-2">
                 <Switch
                   checked={agent.isEnabled}
-                  onCheckedChange={() => toggleEnabled(index)}
+                  onCheckedChange={() => toggleEnabled(agent)}
+                  disabled={updateConfig.isPending}
                 />
                 <span className="text-sm text-muted-foreground">Enabled</span>
               </div>
@@ -131,7 +153,8 @@ export default function AgentsPage() {
                       size="sm"
                       variant={agent.autonomyLevel === level ? "default" : "outline"}
                       className="h-7 text-xs capitalize"
-                      onClick={() => requestAutonomyChange(index, level)}
+                      disabled={updateConfig.isPending}
+                      onClick={() => requestAutonomyChange(agent, level)}
                     >
                       {level}
                     </Button>
@@ -155,25 +178,30 @@ export default function AgentsPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {pendingApprovals.map((task) => (
+              {pendingApprovals.map((approval) => (
                 <div
-                  key={task.id}
+                  key={approval.id}
                   className="flex items-center justify-between border-b pb-3 last:border-0 last:pb-0"
                 >
                   <div className="space-y-1">
-                    <p className="text-sm font-medium">{task.title}</p>
+                    <p className="text-sm font-medium">{approval.title}</p>
                     <Badge variant="secondary" className="capitalize">
-                      {task.agentType}
+                      {approval.agentType}
                     </Badge>
+                    {approval.urgency === "high" && (
+                      <Badge variant="destructive" className="ml-1 capitalize">
+                        urgent
+                      </Badge>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
                       size="sm"
                       variant="default"
-                      disabled={actioningTask === task.id}
-                      onClick={() => handleApprove(task)}
+                      disabled={actOnApproval.isPending}
+                      onClick={() => handleApprove(approval)}
                     >
-                      {actioningTask === task.id ? (
+                      {actOnApproval.isPending ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       ) : (
                         <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
@@ -183,8 +211,8 @@ export default function AgentsPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled={actioningTask === task.id}
-                      onClick={() => handleReject(task)}
+                      disabled={actOnApproval.isPending}
+                      onClick={() => handleReject(approval)}
                     >
                       <XCircle className="h-3.5 w-3.5 mr-1" />
                       Reject
@@ -197,7 +225,7 @@ export default function AgentsPage() {
         </Card>
       )}
 
-      {pendingApprovals.length === 0 && tasks.length > 0 && (
+      {pendingApprovals.length === 0 && (
         <Card>
           <CardContent className="flex items-center justify-center gap-2 h-20 text-sm text-muted-foreground">
             <CheckCircle2 className="h-4 w-4 text-green-500" />
@@ -217,7 +245,7 @@ export default function AgentsPage() {
             <AlertDialogDescription>
               In autopilot mode,{" "}
               <span className="font-medium text-foreground">
-                {pendingAutonomy !== null ? agentStates[pendingAutonomy.index]?.name : "this agent"}
+                {pendingAutonomy?.name ?? "this agent"}
               </span>{" "}
               will act autonomously without requiring your approval for each task. You can switch
               back to copilot or manual at any time.
@@ -225,7 +253,11 @@ export default function AgentsPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmAutonomy}>
+            <AlertDialogAction
+              onClick={() =>
+                pendingAutonomy && applyAutonomy(pendingAutonomy.agentType, pendingAutonomy.level)
+              }
+            >
               Enable Autopilot
             </AlertDialogAction>
           </AlertDialogFooter>

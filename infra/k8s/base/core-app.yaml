@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: core-app
+  namespace: wavestack
+  labels:
+    app: core-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: core-app
+  template:
+    metadata:
+      labels:
+        app: core-app
+    spec:
+      containers:
+        - name: core-app
+          image: wavestack/core-app:latest
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: wavestack-config
+            - secretRef:
+                name: wavestack-secrets
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: core-app
+  namespace: wavestack
+spec:
+  selector:
+    app: core-app
+  ports:
+    - port: 3000
+      targetPort: 3000

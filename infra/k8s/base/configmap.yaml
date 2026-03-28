@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wavestack-config
+  namespace: wavestack
+data:
+  # Service discovery — internal cluster DNS
+  CORE_APP_URL: "http://core-app:3000/api"
+  AGENT_RUNTIME_URL: "http://agent-orchestrator:3300"
+  MCP_GATEWAY_URL: "http://mcp-gateway:4000"
+  SKILLS_URL: "http://skills:3500"
+  KNOWLEDGE_URL: "http://knowledge:3900"
+  AI_PERSONALITY_URL: "http://ai-personality:3800"
+  STREAM_ENGINE_URL: "http://stream-engine:3400"
+  AUTO_MOD_URL: "http://auto-mod:8700"
+  NOTIFICATIONS_URL: "http://notifications:3200"
+  # Feature flags
+  AUTO_CLIP_REQUIRE_APPROVAL: "true"
+  APPROVAL_TIMEOUT_HOURS: "4"
+  # Logging
+  LOG_LEVEL: "info"
+  NODE_ENV: "production"

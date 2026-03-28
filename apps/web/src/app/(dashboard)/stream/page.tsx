@@ -1,8 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { streamStatus, streamHealth, streamHistory } from "@/lib/mock-data";
+import { useLiveStream, useStartStream, useEndStream } from "@/lib/hooks/use-stream";
+import {
+  isTauri,
+  startMediamtx,
+  stopMediamtx,
+  getMediamtxStatus,
+  connectStreamEngine,
+  disconnectStreamEngine,
+  getStreamEngineStatus,
+} from "@/lib/hooks/use-tauri";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,9 +44,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Wifi, AlertTriangle, Cpu, Film, Eye, UserPlus, Scissors, Loader2 } from "lucide-react";
+import {
+  Wifi,
+  AlertTriangle,
+  Cpu,
+  Film,
+  Eye,
+  UserPlus,
+  Scissors,
+  Loader2,
+  Radio,
+  Plug,
+  PlugZap,
+} from "lucide-react";
 import { PlatformIcon } from "@/components/icons/platform-icon";
 import { platformLabel } from "@/lib/colors";
+import { cn } from "@/lib/utils";
 
 function formatDateTime(dateStr: string) {
   const d = new Date(dateStr);
@@ -55,13 +78,22 @@ function formatDuration(minutes: number) {
   return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 }
 
+const RTMP_PORT = 1935;
+const API_PORT = 9997;
+const SE_WS_URL = process.env.NEXT_PUBLIC_STREAM_ENGINE_WS_URL ?? "ws://localhost:3400/ws";
+
 export default function StreamPage() {
-  const [isLive, setIsLive]         = useState(streamStatus.isLive);
-  const [goingLive, setGoingLive]   = useState(false);
+  const [goingLive, setGoingLive] = useState(false);
   const [endStreamOpen, setEndStreamOpen] = useState(false);
-  const [endingStream, setEndingStream]   = useState(false);
-  const [scheduleOpen, setScheduleOpen]   = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const [scheduleSaving, setScheduleSaving] = useState(false);
+  const [streamTitle, setStreamTitle] = useState("");
+  const [streamPlatform, setStreamPlatform] = useState("twitch");
+
+  // Desktop-only state
+  const [relayRunning, setRelayRunning] = useState(false);
+  const [relayLoading, setRelayLoading] = useState(false);
+  const [wsConnected, setWsConnected] = useState(false);
 
   const [scheduleForm, setScheduleForm] = useState({
     title: "",
@@ -70,21 +102,106 @@ export default function StreamPage() {
     platform: "twitch",
   });
 
+  // Real API
+  const { data: liveStream } = useLiveStream();
+  const startStreamMut = useStartStream();
+  const endStreamMut = useEndStream();
+
+  const isLive = liveStream !== undefined ? liveStream !== null : streamStatus.isLive;
+  const liveStreamId = liveStream?.id;
+
+  // Sync desktop relay status on mount
+  useEffect(() => {
+    if (!isTauri) return;
+    getMediamtxStatus().then((s) => {
+      if (s) setRelayRunning(s.running);
+    });
+    getStreamEngineStatus().then((s) => {
+      if (s) setWsConnected(s.connected);
+    });
+  }, []);
+
+  // ── Go Live ───────────────────────────────────────────────────────────────
+
   async function handleGoLive() {
     setGoingLive(true);
-    await new Promise((r) => setTimeout(r, 1500));
-    setIsLive(true);
-    setGoingLive(false);
-    toast.success("You are now live! 🎉");
+    try {
+      // 1. Start the local RTMP relay (desktop only)
+      if (isTauri && !relayRunning) {
+        const relay = await startMediamtx(RTMP_PORT, API_PORT);
+        if (relay?.running) {
+          setRelayRunning(true);
+          toast.success("RTMP relay started");
+        } else {
+          toast.error("Failed to start RTMP relay — check mediamtx installation");
+        }
+      }
+
+      // 2. Connect to stream-engine WebSocket (desktop only)
+      if (isTauri) {
+        const orgId = ""; // session?.user?.orgId — passed from page context in real impl
+        const ws = await connectStreamEngine(`${SE_WS_URL}?org_id=${orgId}`);
+        if (ws?.connected) setWsConnected(true);
+      }
+
+      // 3. Create stream session via API
+      startStreamMut.mutate(
+        { title: streamTitle || undefined, platform: streamPlatform },
+        {
+          onSuccess: () => toast.success("You are now live!"),
+          onError: () => toast.info("Live locally — backend unreachable"),
+          onSettled: () => setGoingLive(false),
+        },
+      );
+    } catch (err) {
+      console.error(err);
+      setGoingLive(false);
+    }
   }
 
+  // ── End Stream ────────────────────────────────────────────────────────────
+
   async function handleEndStream() {
-    setEndingStream(true);
-    await new Promise((r) => setTimeout(r, 1200));
-    setIsLive(false);
-    setEndingStream(false);
-    setEndStreamOpen(false);
-    toast.success("Stream ended. VOD is being processed.");
+    try {
+      // End stream via API
+      if (liveStreamId) {
+        endStreamMut.mutate(liveStreamId);
+      }
+
+      // Stop relay and WebSocket (desktop)
+      if (isTauri) {
+        await disconnectStreamEngine();
+        setWsConnected(false);
+        const relay = await stopMediamtx();
+        if (relay) setRelayRunning(false);
+      }
+
+      setEndStreamOpen(false);
+      toast.success("Stream ended. VOD is being processed.");
+    } catch (err) {
+      console.error(err);
+      toast.error("Error ending stream");
+    }
+  }
+
+  // ── Toggle relay manually (desktop) ──────────────────────────────────────
+
+  async function handleToggleRelay() {
+    setRelayLoading(true);
+    try {
+      if (relayRunning) {
+        const s = await stopMediamtx();
+        setRelayRunning(s?.running ?? false);
+        toast.success("RTMP relay stopped");
+      } else {
+        const s = await startMediamtx(RTMP_PORT, API_PORT);
+        setRelayRunning(s?.running ?? false);
+        if (s?.running) toast.success(`RTMP relay started on port ${RTMP_PORT}`);
+        else toast.error("Failed to start relay — is mediamtx installed?");
+      }
+    } finally {
+      setRelayLoading(false);
+    }
   }
 
   async function handleSchedule() {
@@ -95,10 +212,6 @@ export default function StreamPage() {
     setScheduleOpen(false);
     setScheduleForm({ title: "", date: "", time: "", platform: "twitch" });
     toast.success(`"${scheduleForm.title}" scheduled`);
-  }
-
-  function handleViewVOD(title: string) {
-    toast.info(`Opening VOD: "${title}"`);
   }
 
   return (
@@ -127,7 +240,9 @@ export default function StreamPage() {
                   <p className="font-semibold">Currently Offline</p>
                   <p className="mt-0.5 text-sm text-muted-foreground">
                     Next:{" "}
-                    <span className="font-medium text-foreground">{streamStatus.nextStreamTitle}</span>
+                    <span className="font-medium text-foreground">
+                      {streamStatus.nextStreamTitle}
+                    </span>
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {formatDateTime(streamStatus.nextStreamAt)}
@@ -136,39 +251,150 @@ export default function StreamPage() {
               </>
             )}
           </div>
+
+          {/* Stream title + platform (pre-live config) */}
+          {!isLive && (
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="Stream title…"
+                value={streamTitle}
+                onChange={(e) => setStreamTitle(e.target.value)}
+                className="h-8 w-44 text-sm"
+              />
+              <Select value={streamPlatform} onValueChange={setStreamPlatform}>
+                <SelectTrigger className="h-8 w-32 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {["twitch", "youtube", "kick"].map((p) => (
+                    <SelectItem key={p} value={p}>
+                      <span className="flex items-center gap-1.5">
+                        <PlatformIcon platform={p} size={12} branded />
+                        {platformLabel[p] ?? p}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="flex shrink-0 gap-2">
             <Button variant="outline" size="sm" onClick={() => setScheduleOpen(true)}>
-              Schedule Stream
+              Schedule
             </Button>
             {isLive ? (
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={() => setEndStreamOpen(true)}
-              >
+              <Button size="sm" variant="destructive" onClick={() => setEndStreamOpen(true)}>
                 End Stream
               </Button>
             ) : (
-              <Button size="sm" disabled={goingLive} onClick={handleGoLive}>
-                {goingLive && <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />}
-                {goingLive ? "Going live..." : "Go Live"}
+              <Button
+                size="sm"
+                disabled={goingLive || startStreamMut.isPending}
+                onClick={handleGoLive}
+              >
+                {(goingLive || startStreamMut.isPending) && (
+                  <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />
+                )}
+                <Radio className="h-3.5 w-3.5 mr-1.5" />
+                Go Live
               </Button>
             )}
           </div>
         </CardContent>
       </Card>
 
+      {/* Desktop-only: RTMP relay + stream-engine status */}
+      {isTauri && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <PlugZap className="h-4 w-4" /> Desktop Relay
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Mediamtx status */}
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div className="space-y-0.5">
+                  <p className="text-sm font-medium">Local RTMP Relay</p>
+                  <p className="text-xs text-muted-foreground">
+                    {relayRunning ? `rtmp://localhost:${RTMP_PORT}/live` : "Not running"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      "h-2 w-2 rounded-full",
+                      relayRunning ? "bg-green-500" : "bg-muted-foreground/40",
+                    )}
+                  />
+                  <Button
+                    size="sm"
+                    variant={relayRunning ? "destructive" : "outline"}
+                    className="h-7 text-xs"
+                    disabled={relayLoading}
+                    onClick={handleToggleRelay}
+                  >
+                    {relayLoading && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+                    {relayRunning ? "Stop" : "Start"}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Stream-engine connection */}
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div className="space-y-0.5">
+                  <p className="text-sm font-medium">Stream Engine</p>
+                  <p className="text-xs text-muted-foreground">
+                    {wsConnected ? "Connected" : "Disconnected"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      "h-2 w-2 rounded-full",
+                      wsConnected ? "bg-green-500" : "bg-muted-foreground/40",
+                    )}
+                  />
+                  <Plug className="h-4 w-4 text-muted-foreground" />
+                </div>
+              </div>
+            </div>
+
+            {/* RTMP ingest URL */}
+            {relayRunning && (
+              <div className="mt-3 rounded-md bg-muted/50 px-3 py-2 text-xs font-mono text-muted-foreground">
+                OBS / Streamlabs → Custom RTMP:{" "}
+                <span className="text-foreground font-semibold">
+                  rtmp://localhost:{RTMP_PORT}/live
+                </span>
+                <span className="ml-4">
+                  Stream Key: <span className="text-foreground">wavestack</span>
+                </span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Stream health */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard title="Bitrate"        value={`${streamHealth.bitrate} kbps`}    icon={Wifi} />
-        <StatCard title="Dropped Frames" value={`${streamHealth.droppedFrames}%`}  icon={AlertTriangle} />
-        <StatCard title="CPU Usage"      value={`${streamHealth.cpuUsage}%`}       icon={Cpu} />
-        <StatCard title="FPS"            value={`${streamHealth.encoderFps} fps`}  icon={Film} />
+        <StatCard title="Bitrate" value={`${streamHealth.bitrate} kbps`} icon={Wifi} />
+        <StatCard
+          title="Dropped Frames"
+          value={`${streamHealth.droppedFrames}%`}
+          icon={AlertTriangle}
+        />
+        <StatCard title="CPU Usage" value={`${streamHealth.cpuUsage}%`} icon={Cpu} />
+        <StatCard title="FPS" value={`${streamHealth.encoderFps} fps`} icon={Film} />
       </div>
 
       {/* Stream history */}
       <Card>
-        <CardHeader><CardTitle>Past Streams</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>Past Streams</CardTitle>
+        </CardHeader>
         <CardContent className="px-0">
           <div className="divide-y divide-border">
             {streamHistory.map((stream, i) => (
@@ -183,23 +409,30 @@ export default function StreamPage() {
                     {platformLabel[stream.platform] ?? stream.platform}
                   </Badge>
                 </div>
-                <span className="w-14 shrink-0 text-muted-foreground">{formatShortDate(stream.startedAt)}</span>
-                <span className="w-16 shrink-0 text-muted-foreground">{formatDuration(stream.duration)}</span>
+                <span className="w-14 shrink-0 text-muted-foreground">
+                  {formatShortDate(stream.startedAt)}
+                </span>
+                <span className="w-16 shrink-0 text-muted-foreground">
+                  {formatDuration(stream.duration)}
+                </span>
                 <span className="flex w-28 shrink-0 items-center gap-1 text-muted-foreground">
-                  <Eye className="h-3.5 w-3.5" />{stream.peakViewers} peak
+                  <Eye className="h-3.5 w-3.5" />
+                  {stream.peakViewers} peak
                 </span>
                 <span className="w-20 shrink-0 text-muted-foreground">{stream.avgViewers} avg</span>
                 <span className="flex w-16 shrink-0 items-center gap-1 text-muted-foreground">
-                  <UserPlus className="h-3.5 w-3.5" />{stream.newFollowers}
+                  <UserPlus className="h-3.5 w-3.5" />
+                  {stream.newFollowers}
                 </span>
                 <span className="flex w-14 shrink-0 items-center gap-1 text-muted-foreground">
-                  <Scissors className="h-3.5 w-3.5" />{stream.clipsCreated}
+                  <Scissors className="h-3.5 w-3.5" />
+                  {stream.clipsCreated}
                 </span>
                 <Button
                   variant="ghost"
                   size="sm"
                   className="h-7 text-xs"
-                  onClick={() => handleViewVOD(stream.title)}
+                  onClick={() => toast.info(`Opening VOD: "${stream.title}"`)}
                 >
                   View VOD
                 </Button>
@@ -256,23 +489,36 @@ export default function StreamPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="twitch">
-                    <span className="flex items-center gap-1.5"><PlatformIcon platform="twitch" size={13} branded /> Twitch</span>
+                    <span className="flex items-center gap-1.5">
+                      <PlatformIcon platform="twitch" size={13} branded /> Twitch
+                    </span>
                   </SelectItem>
                   <SelectItem value="youtube">
-                    <span className="flex items-center gap-1.5"><PlatformIcon platform="youtube" size={13} branded /> YouTube</span>
+                    <span className="flex items-center gap-1.5">
+                      <PlatformIcon platform="youtube" size={13} branded /> YouTube
+                    </span>
                   </SelectItem>
                   <SelectItem value="kick">
-                    <span className="flex items-center gap-1.5"><PlatformIcon platform="kick" size={13} branded /> Kick</span>
+                    <span className="flex items-center gap-1.5">
+                      <PlatformIcon platform="kick" size={13} branded /> Kick
+                    </span>
                   </SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setScheduleOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setScheduleOpen(false)}>
+              Cancel
+            </Button>
             <Button
               onClick={handleSchedule}
-              disabled={scheduleSaving || !scheduleForm.title.trim() || !scheduleForm.date || !scheduleForm.time}
+              disabled={
+                scheduleSaving ||
+                !scheduleForm.title.trim() ||
+                !scheduleForm.date ||
+                !scheduleForm.time
+              }
             >
               {scheduleSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Schedule
@@ -287,17 +533,18 @@ export default function StreamPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>End stream?</AlertDialogTitle>
             <AlertDialogDescription>
-              Your stream will go offline immediately. A VOD will be generated and available within a few minutes.
+              Your stream will go offline immediately. A VOD will be generated and available within
+              a few minutes.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep Streaming</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleEndStream}
-              disabled={endingStream}
+              disabled={endStreamMut.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {endingStream && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {endStreamMut.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               End Stream
             </AlertDialogAction>
           </AlertDialogFooter>

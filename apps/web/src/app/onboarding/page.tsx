@@ -28,11 +28,11 @@ import {
 // ── Steps ──────────────────────────────────────────────────────────────────
 
 const STEPS = [
-  { id: "welcome",    label: "Welcome"    },
-  { id: "platforms",  label: "Platforms"  },
-  { id: "goals",      label: "Goals"      },
-  { id: "agent",      label: "AI Setup"   },
-  { id: "done",       label: "Done"       },
+  { id: "welcome", label: "Welcome" },
+  { id: "platforms", label: "Platforms" },
+  { id: "goals", label: "Goals" },
+  { id: "agent", label: "AI Setup" },
+  { id: "done", label: "Done" },
 ] as const;
 
 type StepId = (typeof STEPS)[number]["id"];
@@ -40,19 +40,49 @@ type StepId = (typeof STEPS)[number]["id"];
 // ── Platform data ──────────────────────────────────────────────────────────
 
 const PLATFORMS = [
-  { id: "youtube",   label: "YouTube",   color: "text-red-500",    bg: "bg-red-500/10 border-red-500/30",  icon: Youtube    },
-  { id: "twitch",    label: "Twitch",    color: "text-purple-500", bg: "bg-purple-500/10 border-purple-500/30", icon: Twitch },
-  { id: "tiktok",    label: "TikTok",    color: "text-pink-500",   bg: "bg-pink-500/10 border-pink-500/30",    icon: Zap    },
-  { id: "twitter",   label: "X / Twitter", color: "text-sky-400", bg: "bg-sky-400/10 border-sky-400/30",  icon: Twitter    },
-  { id: "instagram", label: "Instagram", color: "text-orange-500", bg: "bg-orange-500/10 border-orange-500/30", icon: Instagram },
+  {
+    id: "youtube",
+    label: "YouTube",
+    color: "text-red-500",
+    bg: "bg-red-500/10 border-red-500/30",
+    icon: Youtube,
+  },
+  {
+    id: "twitch",
+    label: "Twitch",
+    color: "text-purple-500",
+    bg: "bg-purple-500/10 border-purple-500/30",
+    icon: Twitch,
+  },
+  {
+    id: "tiktok",
+    label: "TikTok",
+    color: "text-pink-500",
+    bg: "bg-pink-500/10 border-pink-500/30",
+    icon: Zap,
+  },
+  {
+    id: "twitter",
+    label: "X / Twitter",
+    color: "text-sky-400",
+    bg: "bg-sky-400/10 border-sky-400/30",
+    icon: Twitter,
+  },
+  {
+    id: "instagram",
+    label: "Instagram",
+    color: "text-orange-500",
+    bg: "bg-orange-500/10 border-orange-500/30",
+    icon: Instagram,
+  },
 ];
 
 const GOALS = [
-  { id: "grow",      label: "Grow my audience",       icon: BarChart3  },
-  { id: "automate",  label: "Automate my workflow",    icon: Zap        },
-  { id: "monetize",  label: "Increase revenue",        icon: Sparkles   },
-  { id: "stream",    label: "Level up my streams",     icon: Radio      },
-  { id: "bots",      label: "Manage community bots",   icon: Bot        },
+  { id: "grow", label: "Grow my audience", icon: BarChart3 },
+  { id: "automate", label: "Automate my workflow", icon: Zap },
+  { id: "monetize", label: "Increase revenue", icon: Sparkles },
+  { id: "stream", label: "Level up my streams", icon: Radio },
+  { id: "bots", label: "Manage community bots", icon: Bot },
 ];
 
 const AGENT_MODES = [
@@ -92,7 +122,7 @@ export default function OnboardingPage() {
   const [finishing, setFinishing] = useState(false);
 
   const stepIndex = STEPS.findIndex((s) => s.id === step);
-  const progress = Math.round(((stepIndex) / (STEPS.length - 1)) * 100);
+  const progress = Math.round((stepIndex / (STEPS.length - 1)) * 100);
 
   async function connectPlatform(id: string) {
     setConnecting(id);
@@ -105,7 +135,11 @@ export default function OnboardingPage() {
   function toggleGoal(id: string) {
     setSelectedGoals((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
       return next;
     });
   }
@@ -148,19 +182,26 @@ export default function OnboardingPage() {
                     i < stepIndex
                       ? "bg-primary text-primary-foreground"
                       : i === stepIndex
-                      ? "border-2 border-primary text-primary"
-                      : "bg-muted text-muted-foreground"
+                        ? "border-2 border-primary text-primary"
+                        : "bg-muted text-muted-foreground",
                   )}
                 >
                   {i < stepIndex ? <CheckCircle2 className="h-3.5 w-3.5" /> : i + 1}
                 </div>
                 {i < STEPS.length - 1 && (
-                  <div className={cn("h-px w-6 transition-colors", i < stepIndex ? "bg-primary" : "bg-border")} />
+                  <div
+                    className={cn(
+                      "h-px w-6 transition-colors",
+                      i < stepIndex ? "bg-primary" : "bg-border",
+                    )}
+                  />
                 )}
               </div>
             ))}
           </div>
-          <span className="text-sm text-muted-foreground">{stepIndex + 1} / {STEPS.length}</span>
+          <span className="text-sm text-muted-foreground">
+            {stepIndex + 1} / {STEPS.length}
+          </span>
         </div>
       </div>
 
@@ -170,7 +211,6 @@ export default function OnboardingPage() {
       {/* Content */}
       <div className="flex-1 flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-lg space-y-8">
-
           {/* ── Welcome ── */}
           {step === "welcome" && (
             <div className="space-y-6 text-center">
@@ -215,7 +255,9 @@ export default function OnboardingPage() {
             <div className="space-y-6">
               <div className="text-center">
                 <h2 className="text-2xl font-bold">Connect your platforms</h2>
-                <p className="text-muted-foreground mt-1">Connect at least one to get started. You can add more later.</p>
+                <p className="text-muted-foreground mt-1">
+                  Connect at least one to get started. You can add more later.
+                </p>
               </div>
               <div className="space-y-3">
                 {PLATFORMS.map((p) => {
@@ -226,14 +268,17 @@ export default function OnboardingPage() {
                       key={p.id}
                       className={cn(
                         "flex items-center justify-between rounded-lg border p-4 transition-colors",
-                        isConnected ? `${p.bg}` : "border-border"
+                        isConnected ? `${p.bg}` : "border-border",
                       )}
                     >
                       <div className="flex items-center gap-3">
                         <p.icon className={cn("h-5 w-5", p.color)} />
                         <span className="font-medium text-sm">{p.label}</span>
                         {isConnected && (
-                          <Badge variant="outline" className="text-green-400 border-green-400/30 text-xs">
+                          <Badge
+                            variant="outline"
+                            className="text-green-400 border-green-400/30 text-xs"
+                          >
                             Connected ✓
                           </Badge>
                         )}
@@ -269,7 +314,9 @@ export default function OnboardingPage() {
             <div className="space-y-6">
               <div className="text-center">
                 <h2 className="text-2xl font-bold">What&apos;s your focus?</h2>
-                <p className="text-muted-foreground mt-1">Select all that apply — we&apos;ll tailor WaveStack to match.</p>
+                <p className="text-muted-foreground mt-1">
+                  Select all that apply — we&apos;ll tailor WaveStack to match.
+                </p>
               </div>
               <div className="grid grid-cols-1 gap-3">
                 {GOALS.map((g) => {
@@ -282,17 +329,23 @@ export default function OnboardingPage() {
                         "flex items-center gap-4 rounded-lg border p-4 text-left transition-colors",
                         selected
                           ? "border-primary bg-primary/5"
-                          : "border-border hover:border-primary/50"
+                          : "border-border hover:border-primary/50",
                       )}
                     >
-                      <div className={cn(
-                        "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors",
-                        selected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                      )}>
+                      <div
+                        className={cn(
+                          "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors",
+                          selected
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-muted-foreground",
+                        )}
+                      >
                         <g.icon className="h-4 w-4" />
                       </div>
                       <span className="font-medium text-sm">{g.label}</span>
-                      {selected && <CheckCircle2 className="ml-auto h-4 w-4 text-primary shrink-0" />}
+                      {selected && (
+                        <CheckCircle2 className="ml-auto h-4 w-4 text-primary shrink-0" />
+                      )}
                     </button>
                   );
                 })}
@@ -306,7 +359,8 @@ export default function OnboardingPage() {
               <div className="text-center">
                 <h2 className="text-2xl font-bold">AI autonomy level</h2>
                 <p className="text-muted-foreground mt-1">
-                  How much should WaveStack&apos;s AI agents act on their own? You can change this any time.
+                  How much should WaveStack&apos;s AI agents act on their own? You can change this
+                  any time.
                 </p>
               </div>
               <div className="space-y-3">
@@ -318,17 +372,23 @@ export default function OnboardingPage() {
                       "w-full flex items-start gap-4 rounded-lg border p-4 text-left transition-colors",
                       agentMode === m.id
                         ? "border-primary bg-primary/5"
-                        : "border-border hover:border-primary/50"
+                        : "border-border hover:border-primary/50",
                     )}
                   >
-                    <div className={cn(
-                      "mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 transition-colors",
-                      agentMode === m.id ? "border-primary bg-primary" : "border-muted-foreground"
-                    )} />
+                    <div
+                      className={cn(
+                        "mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 transition-colors",
+                        agentMode === m.id
+                          ? "border-primary bg-primary"
+                          : "border-muted-foreground",
+                      )}
+                    />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-sm">{m.label}</span>
-                        <Badge variant="outline" className={`text-xs ${m.badgeClass}`}>{m.badge}</Badge>
+                        <Badge variant="outline" className={`text-xs ${m.badgeClass}`}>
+                          {m.badge}
+                        </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">{m.desc}</p>
                     </div>
@@ -353,15 +413,24 @@ export default function OnboardingPage() {
                 </h2>
                 <p className="text-muted-foreground mt-2">
                   WaveStack is configured and your agents are ready.
-                  {connected.size > 0 && ` ${connected.size} platform${connected.size > 1 ? "s" : ""} connected.`}
+                  {connected.size > 0 &&
+                    ` ${connected.size} platform${connected.size > 1 ? "s" : ""} connected.`}
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-3 text-left">
                 {[
-                  { icon: "🤖", title: "Agents ready",      desc: `${agentMode === "semi" ? "Semi-auto" : agentMode === "autopilot" ? "Autopilot" : "Manual"} mode` },
-                  { icon: "📡", title: "Platforms",          desc: connected.size > 0 ? `${connected.size} connected` : "Add from Settings" },
-                  { icon: "⚡", title: "Workflows",          desc: "3 templates ready" },
-                  { icon: "📊", title: "Analytics",          desc: "Tracking enabled" },
+                  {
+                    icon: "🤖",
+                    title: "Agents ready",
+                    desc: `${agentMode === "semi" ? "Semi-auto" : agentMode === "autopilot" ? "Autopilot" : "Manual"} mode`,
+                  },
+                  {
+                    icon: "📡",
+                    title: "Platforms",
+                    desc: connected.size > 0 ? `${connected.size} connected` : "Add from Settings",
+                  },
+                  { icon: "⚡", title: "Workflows", desc: "3 templates ready" },
+                  { icon: "📊", title: "Analytics", desc: "Tracking enabled" },
                 ].map((c) => (
                   <div key={c.title} className="rounded-lg border p-3 space-y-0.5">
                     <p className="text-lg">{c.icon}</p>
@@ -377,7 +446,8 @@ export default function OnboardingPage() {
           <div className="flex items-center justify-between pt-2">
             {step !== "welcome" && step !== "done" ? (
               <Button variant="ghost" onClick={back}>
-                <ChevronLeft className="h-4 w-4 mr-1" />Back
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Back
               </Button>
             ) : (
               <div />
@@ -393,10 +463,7 @@ export default function OnboardingPage() {
                 {finishing ? "Setting up…" : "Go to Dashboard"}
               </Button>
             ) : (
-              <Button
-                onClick={next}
-                disabled={step === "welcome" && !displayName.trim()}
-              >
+              <Button onClick={next} disabled={step === "welcome" && !displayName.trim()}>
                 {step === "agent" ? "Finish setup" : "Continue"}
                 <ChevronRight className="h-4 w-4 ml-1" />
               </Button>
@@ -406,7 +473,10 @@ export default function OnboardingPage() {
           {/* Skip */}
           {(step === "platforms" || step === "goals") && (
             <p className="text-center">
-              <button onClick={next} className="text-xs text-muted-foreground underline hover:text-foreground transition-colors">
+              <button
+                onClick={next}
+                className="text-xs text-muted-foreground underline hover:text-foreground transition-colors"
+              >
                 Skip this step
               </button>
             </p>

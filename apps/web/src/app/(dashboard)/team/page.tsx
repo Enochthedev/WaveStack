@@ -2,17 +2,10 @@
 
 import { useState } from "react";
 import { PageHeader } from "@/components/shared/page-header";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -32,7 +25,6 @@ import {
 import {
   Plus,
   Link2,
-  Copy,
   CheckCircle2,
   Clock,
   Trash2,
@@ -62,31 +54,65 @@ const ROLES = ["admin", "editor", "moderator", "analyst"] as const;
 type Role = (typeof ROLES)[number];
 
 const ROLE_META: Record<Role, { label: string; color: string; description: string }> = {
-  admin:     { label: "Admin",     color: "bg-violet-500/10 text-violet-600 border-violet-500/20",  description: "Full access: publish, manage team, billing. Cannot delete account." },
-  editor:    { label: "Editor",    color: "bg-sky-500/10 text-sky-600 border-sky-500/20",           description: "Create, edit, and schedule content. Cannot manage team or billing." },
-  moderator: { label: "Moderator", color: "bg-amber-500/10 text-amber-600 border-amber-500/20",    description: "Review flagged content, apply moderation rules. Read-only analytics." },
-  analyst:   { label: "Analyst",   color: "bg-teal-500/10 text-teal-600 border-teal-500/20",       description: "View analytics and reports. No publishing or moderation access." },
+  admin: {
+    label: "Admin",
+    color: "bg-violet-500/10 text-violet-600 border-violet-500/20",
+    description: "Full access: publish, manage team, billing. Cannot delete account.",
+  },
+  editor: {
+    label: "Editor",
+    color: "bg-sky-500/10 text-sky-600 border-sky-500/20",
+    description: "Create, edit, and schedule content. Cannot manage team or billing.",
+  },
+  moderator: {
+    label: "Moderator",
+    color: "bg-amber-500/10 text-amber-600 border-amber-500/20",
+    description: "Review flagged content, apply moderation rules. Read-only analytics.",
+  },
+  analyst: {
+    label: "Analyst",
+    color: "bg-teal-500/10 text-teal-600 border-teal-500/20",
+    description: "View analytics and reports. No publishing or moderation access.",
+  },
 };
 
 // Permissions matrix for the reference table
 const PERMISSIONS = [
-  { action: "View Dashboard & Analytics", admin: true,  editor: false, moderator: false, analyst: true  },
-  { action: "Create / Edit Content",      admin: true,  editor: true,  moderator: false, analyst: false },
-  { action: "Publish & Schedule Posts",   admin: true,  editor: true,  moderator: false, analyst: false },
-  { action: "Manage Clips",               admin: true,  editor: true,  moderator: false, analyst: false },
-  { action: "Review Moderation Flags",    admin: true,  editor: false, moderator: true,  analyst: false },
-  { action: "Apply Moderation Rules",     admin: true,  editor: false, moderator: true,  analyst: false },
-  { action: "Configure Agents",           admin: true,  editor: false, moderator: false, analyst: false },
-  { action: "Run Workflows",              admin: true,  editor: true,  moderator: false, analyst: false },
-  { action: "View Billing",               admin: true,  editor: false, moderator: false, analyst: false },
-  { action: "Manage Team",                admin: true,  editor: false, moderator: false, analyst: false },
+  {
+    action: "View Dashboard & Analytics",
+    admin: true,
+    editor: false,
+    moderator: false,
+    analyst: true,
+  },
+  { action: "Create / Edit Content", admin: true, editor: true, moderator: false, analyst: false },
+  {
+    action: "Publish & Schedule Posts",
+    admin: true,
+    editor: true,
+    moderator: false,
+    analyst: false,
+  },
+  { action: "Manage Clips", admin: true, editor: true, moderator: false, analyst: false },
+  {
+    action: "Review Moderation Flags",
+    admin: true,
+    editor: false,
+    moderator: true,
+    analyst: false,
+  },
+  { action: "Apply Moderation Rules", admin: true, editor: false, moderator: true, analyst: false },
+  { action: "Configure Agents", admin: true, editor: false, moderator: false, analyst: false },
+  { action: "Run Workflows", admin: true, editor: true, moderator: false, analyst: false },
+  { action: "View Billing", admin: true, editor: false, moderator: false, analyst: false },
+  { action: "Manage Team", admin: true, editor: false, moderator: false, analyst: false },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function relTime(iso: string | null) {
   if (!iso) return "Never";
-  const d    = new Date(iso);
+  const d = new Date(iso);
   const diff = Date.now() - d.getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 60) return `${mins}m ago`;
@@ -96,7 +122,11 @@ function relTime(iso: string | null) {
 }
 
 function relDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return new Date(iso).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 function RoleBadge({ role }: { role: string }) {
@@ -110,20 +140,22 @@ function RoleBadge({ role }: { role: string }) {
 }
 
 function PermCheck({ yes }: { yes: boolean }) {
-  return yes
-    ? <CheckCircle2 className="h-4 w-4 text-emerald-500 mx-auto" />
-    : <span className="block w-4 h-px bg-border mx-auto" />;
+  return yes ? (
+    <CheckCircle2 className="h-4 w-4 text-emerald-500 mx-auto" />
+  ) : (
+    <span className="block w-4 h-px bg-border mx-auto" />
+  );
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function TeamPage() {
-  const [members,  setMembers]  = useState<Member[]>(teamMembers);
+  const [members, setMembers] = useState<Member[]>(teamMembers);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole,  setInviteRole]  = useState<Role>("editor");
-  const [dialogOpen,  setDialogOpen]  = useState(false);
-  const [copied,      setCopied]      = useState(false);
-  const [showMatrix,  setShowMatrix]  = useState(false);
+  const [inviteRole, setInviteRole] = useState<Role>("editor");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [showMatrix, setShowMatrix] = useState(false);
 
   // Per-user route overrides: memberId → { route: boolean }
   // true = explicitly granted (even if role wouldn't allow)
@@ -157,19 +189,19 @@ export default function TeamPage() {
     setPermTarget(null);
   }
 
-  const active  = members.filter((m) => m.status === "active");
+  const active = members.filter((m) => m.status === "active");
   const pending = members.filter((m) => m.status === "pending");
 
   function sendInvite() {
     if (!inviteEmail.trim()) return;
     const newMember: Member = {
-      id:         String(Date.now()),
-      name:       inviteEmail.split("@")[0],
-      email:      inviteEmail,
-      role:       inviteRole,
-      avatar:     inviteEmail.slice(0, 2).toUpperCase(),
-      status:     "pending",
-      joinedAt:   new Date().toISOString(),
+      id: String(Date.now()),
+      name: inviteEmail.split("@")[0],
+      email: inviteEmail,
+      role: inviteRole,
+      avatar: inviteEmail.slice(0, 2).toUpperCase(),
+      status: "pending",
+      joinedAt: new Date().toISOString(),
       lastActive: null,
     };
     setMembers((prev) => [...prev, newMember]);
@@ -193,17 +225,14 @@ export default function TeamPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader
-        title="Team"
-        description="Manage who has access to your WaveStack workspace"
-      />
+      <PageHeader title="Team" description="Manage who has access to your WaveStack workspace" />
 
       {/* ── Stats row ──────────────────────────────────────────── */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: "Team Members",  value: active.length,  sub: "active" },
-          { label: "Pending",       value: pending.length, sub: "invitations" },
-          { label: "Seats Used",    value: `${members.length} / 5`, sub: "Pro plan" },
+          { label: "Team Members", value: active.length, sub: "active" },
+          { label: "Pending", value: pending.length, sub: "invitations" },
+          { label: "Seats Used", value: `${members.length} / 5`, sub: "Pro plan" },
         ].map(({ label, value, sub }) => (
           <Card key={label}>
             <CardContent className="pt-5 pb-4">
@@ -225,7 +254,11 @@ export default function TeamPage() {
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={copyInviteLink} className="gap-1.5">
-                {copied ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> : <Link2 className="h-3.5 w-3.5" />}
+                {copied ? (
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                ) : (
+                  <Link2 className="h-3.5 w-3.5" />
+                )}
                 {copied ? "Copied!" : "Copy invite link"}
               </Button>
               <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -263,7 +296,9 @@ export default function TeamPage() {
                             <SelectItem key={r} value={r}>
                               <div>
                                 <p className="font-medium capitalize">{r}</p>
-                                <p className="text-xs text-muted-foreground">{ROLE_META[r].description}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {ROLE_META[r].description}
+                                </p>
                               </div>
                             </SelectItem>
                           ))}
@@ -272,8 +307,12 @@ export default function TeamPage() {
                     </div>
                   </div>
                   <DialogFooter>
-                    <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-                    <Button onClick={sendInvite} disabled={!inviteEmail.trim()}>Send invite</Button>
+                    <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={sendInvite} disabled={!inviteEmail.trim()}>
+                      Send invite
+                    </Button>
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
@@ -289,7 +328,10 @@ export default function TeamPage() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <p className="text-sm font-medium">WaveStack Creator</p>
-                <Badge variant="outline" className="text-[10px] h-4 py-0 px-1.5 bg-amber-500/10 text-amber-600 border-amber-500/20">
+                <Badge
+                  variant="outline"
+                  className="text-[10px] h-4 py-0 px-1.5 bg-amber-500/10 text-amber-600 border-amber-500/20"
+                >
                   Owner
                 </Badge>
               </div>
@@ -370,7 +412,9 @@ export default function TeamPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <Button variant="outline" size="sm" className="h-7 text-xs">Resend</Button>
+                  <Button variant="outline" size="sm" className="h-7 text-xs">
+                    Resend
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -402,7 +446,11 @@ export default function TeamPage() {
                 </CardDescription>
               </div>
             </div>
-            {showMatrix ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+            {showMatrix ? (
+              <ChevronUp className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            )}
           </button>
         </CardHeader>
         {showMatrix && (
@@ -425,10 +473,18 @@ export default function TeamPage() {
                   {PERMISSIONS.map((p) => (
                     <tr key={p.action} className="hover:bg-muted/30 transition-colors">
                       <td className="py-2.5 pr-6 text-sm">{p.action}</td>
-                      <td className="py-2.5 px-4"><PermCheck yes={p.admin}     /></td>
-                      <td className="py-2.5 px-4"><PermCheck yes={p.editor}    /></td>
-                      <td className="py-2.5 px-4"><PermCheck yes={p.moderator} /></td>
-                      <td className="py-2.5 px-4"><PermCheck yes={p.analyst}   /></td>
+                      <td className="py-2.5 px-4">
+                        <PermCheck yes={p.admin} />
+                      </td>
+                      <td className="py-2.5 px-4">
+                        <PermCheck yes={p.editor} />
+                      </td>
+                      <td className="py-2.5 px-4">
+                        <PermCheck yes={p.moderator} />
+                      </td>
+                      <td className="py-2.5 px-4">
+                        <PermCheck yes={p.analyst} />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -438,7 +494,8 @@ export default function TeamPage() {
             <div className="mt-4 rounded-lg border border-border bg-muted/30 p-3">
               <p className="text-xs text-muted-foreground flex gap-2">
                 <Info className="h-3.5 w-3.5 shrink-0 mt-0.5 text-primary" />
-                The <strong>Owner</strong> account has unrestricted access to all features, including billing and account deletion. Roles can be changed at any time.
+                The <strong>Owner</strong> account has unrestricted access to all features,
+                including billing and account deletion. Roles can be changed at any time.
               </p>
             </div>
           </CardContent>
@@ -457,16 +514,16 @@ export default function TeamPage() {
 
           <div className="text-xs text-muted-foreground rounded-lg border border-border bg-muted/30 px-3 py-2 mb-1">
             Base role: <RoleBadge role={permTarget?.role ?? "editor"} />
-            <span className="ml-1">— toggles below override the role&apos;s defaults for this person only.</span>
+            <span className="ml-1">
+              — toggles below override the role&apos;s defaults for this person only.
+            </span>
           </div>
 
           <div className="space-y-1 max-h-80 overflow-y-auto pr-1">
             {Object.keys(ROUTE_ACCESS).map((route) => {
-              const memberId  = permTarget?.id ?? "";
-              const roleDefault = permTarget
-                ? canAccess(permTarget.role as Role, route)
-                : false;
-              const current   = grants[memberId]?.[route] ?? roleDefault;
+              const memberId = permTarget?.id ?? "";
+              const roleDefault = permTarget ? canAccess(permTarget.role as Role, route) : false;
+              const current = grants[memberId]?.[route] ?? roleDefault;
               const isOverride = current !== roleDefault;
 
               return (
@@ -475,7 +532,9 @@ export default function TeamPage() {
                   className="flex items-center justify-between rounded-md px-3 py-2 hover:bg-muted/40 transition-colors"
                 >
                   <div className="flex items-center gap-2 min-w-0">
-                    <code className="text-xs text-muted-foreground font-mono truncate">{route}</code>
+                    <code className="text-xs text-muted-foreground font-mono truncate">
+                      {route}
+                    </code>
                     {isOverride && (
                       <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-primary/10 text-primary font-medium shrink-0">
                         overridden
@@ -493,7 +552,9 @@ export default function TeamPage() {
           </div>
 
           <PermDialogFooter>
-            <Button variant="outline" onClick={() => setPermTarget(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setPermTarget(null)}>
+              Cancel
+            </Button>
             <Button onClick={savePerms}>Save permissions</Button>
           </PermDialogFooter>
         </PermDialogContent>
@@ -509,12 +570,15 @@ export default function TeamPage() {
           {teamAuditLog.map((entry) => (
             <div key={entry.id} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
               <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold mt-0.5">
-                {entry.actor.split(" ").map((w) => w[0]).join("").slice(0, 2)}
+                {entry.actor
+                  .split(" ")
+                  .map((w) => w[0])
+                  .join("")
+                  .slice(0, 2)}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm">
-                  <span className="font-medium">{entry.actor}</span>
-                  {" "}
+                  <span className="font-medium">{entry.actor}</span>{" "}
                   <span className="text-muted-foreground">{entry.action}</span>
                 </p>
                 <p className="text-xs text-muted-foreground truncate">{entry.resource}</p>

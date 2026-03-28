@@ -1,8 +1,15 @@
+use std::{process::Mutex as StdMutex, sync::Arc};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Manager, Runtime,
 };
+
+mod mediamtx;
+mod stream_ws;
+
+use mediamtx::MediamtxState;
+use stream_ws::StreamEngineState;
 
 // ── Tauri commands (callable from JS via invoke()) ─────────────────────────
 
@@ -46,8 +53,23 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec!["--minimized"]),
         ))
+        // ── Managed state ─────────────────────────────────────────────────
+        .manage(MediamtxState(StdMutex::new(None)))
+        .manage(Arc::new(StreamEngineState::default()))
         // ── Commands ──────────────────────────────────────────────────────
-        .invoke_handler(tauri::generate_handler![app_version, toggle_window])
+        .invoke_handler(tauri::generate_handler![
+            app_version,
+            toggle_window,
+            // Mediamtx
+            mediamtx::start_mediamtx,
+            mediamtx::stop_mediamtx,
+            mediamtx::mediamtx_status,
+            // Stream-engine WebSocket
+            stream_ws::connect_stream_engine,
+            stream_ws::disconnect_stream_engine,
+            stream_ws::stream_engine_status,
+            stream_ws::push_stream_metrics,
+        ])
         // ── Setup ─────────────────────────────────────────────────────────
         .setup(|app| {
             build_tray(app)?;

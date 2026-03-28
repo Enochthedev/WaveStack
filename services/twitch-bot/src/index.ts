@@ -11,32 +11,68 @@ import { ClipService } from './services/clip-service';
 import { OBSService } from './services/obs-service';
 import { ModerationService } from './services/moderation';
 import { AutoClipDetector } from './services/auto-clip-detector';
+import { MessageClassifier } from './services/message-classifier';
+import { NlpResponder } from './services/nlp-responder';
+import { HypeReporter } from './services/hype-reporter';
 
 config();
 
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 const redis = createRedisClient({ url: process.env.REDIS_URL });
 
-// Initialize Twitch client
-const client = new tmi.Client({
-  options: { debug: false },
-  connection: {
-    reconnect: true,
-    secure: true,
-  },
-  identity: {
-    username: process.env.TWITCH_BOT_USERNAME!,
-    password: process.env.TWITCH_BOT_OAUTH!,
-  },
-  channels: [process.env.TWITCH_CHANNEL!],
-});
+const CORE_API_URL = process.env.CORE_API_URL || 'http://core-api:3000/api';
+const INTERNAL_SERVICE_SECRET = process.env.INTERNAL_SERVICE_SECRET || '';
 
-// Initialize services
+/**
+ * Fetch all active Twitch accounts from core-app.
+ * Returns channel handles (e.g. ["streamer1", "streamer2"]).
+ * Falls back to TWITCH_CHANNELS env var for local dev without core-app running.
+ */
+async function fetchActiveChannels(): Promise<string[]> {
+  try {
+    const res = await fetch(
+      `${CORE_API_URL}/v1/internal/platforms/accounts?platform=twitch`,
+      { headers: { 'x-internal-service': INTERNAL_SERVICE_SECRET } },
+    );
+    if (!res.ok) throw new Error(`core-app responded ${res.status}`);
+    const accounts = (await res.json()) as Array<{ orgId: string; accountHandle?: string }>;
+    const channels = accounts
+      .map((a) => a.accountHandle)
+      .filter((h): h is string => Boolean(h));
+    // Build channel → orgId map for model routing
+    accounts.forEach((a) => {
+      if (a.accountHandle && a.orgId) channelOrgMap.set(a.accountHandle.toLowerCase(), a.orgId);
+    });
+    if (channels.length > 0) {
+      logger.info({ channels }, 'Loaded Twitch channels from DB');
+      return channels;
+    }
+  } catch (err) {
+    logger.warn({ err }, 'Could not fetch channels from core-app — falling back to env');
+  }
+  const envChannels = (process.env.TWITCH_CHANNELS || '')
+    .split(',').map((c) => c.trim()).filter(Boolean);
+  if (envChannels.length > 0) return envChannels;
+  throw new Error(
+    'No Twitch channels configured. Connect a Twitch account via the dashboard or set TWITCH_CHANNELS in .env',
+  );
+}
+
+// Initialised in start() once we know which channels to join
+let client: tmi.Client;
+
+// Services (initialised in start())
 let commandHandler: CommandHandler;
 let clipService: ClipService;
 let obsService: OBSService;
 let moderationService: ModerationService;
 let autoClipDetector: AutoClipDetector;
+let messageClassifier: MessageClassifier;
+let nlpResponder: NlpResponder;
+let hypeReporter: HypeReporter;
+
+// Channel → orgId map (populated from DB accounts, used for per-org model routing)
+const channelOrgMap = new Map<string, string>();
 
 async function start() {
   try {
@@ -44,11 +80,31 @@ async function start() {
     await redis.connect();
     logger.info('✅ Connected to Redis');
 
+    // Resolve channels from DB (with env fallback for dev)
+    const channels = await fetchActiveChannels();
+
+    // Build Twitch client now that we have channels
+    // Bot identity (username + oauth) is app-level — the shared WaveStack bot account.
+    // Per-org credentials (streamer tokens) are stored in DB and used for API calls, not chat.
+    client = new tmi.Client({
+      options: { debug: false },
+      connection: { reconnect: true, secure: true },
+      identity: {
+        username: process.env.TWITCH_BOT_USERNAME!,
+        password: process.env.TWITCH_BOT_OAUTH!,
+      },
+      channels,
+    });
+
     // Initialize services
-    commandHandler = new CommandHandler(client, redis, logger);
-    clipService = new ClipService(client, redis, logger);
+    commandHandler    = new CommandHandler(client, redis, logger);
+    clipService       = new ClipService(client, redis, logger);
     moderationService = new ModerationService(client, redis, logger);
-    autoClipDetector = new AutoClipDetector(client, redis, logger, clipService);
+    autoClipDetector  = new AutoClipDetector(client, redis, logger, clipService);
+    messageClassifier = new MessageClassifier(logger);
+    nlpResponder      = new NlpResponder(redis as any, logger);
+    hypeReporter      = new HypeReporter(redis, logger);
+    hypeReporter.start();
 
     // Initialize OBS if configured
     if (process.env.OBS_WEBSOCKET_URL && process.env.OBS_WEBSOCKET_PASSWORD) {
@@ -59,7 +115,7 @@ async function start() {
 
     // Connect to Twitch
     await client.connect();
-    logger.info(`✅ Connected to Twitch channel: ${process.env.TWITCH_CHANNEL}`);
+    logger.info({ channels }, '✅ Connected to Twitch');
 
     // Set up event handlers
     setupEventHandlers();
@@ -79,14 +135,45 @@ function setupEventHandlers() {
     const isAllowed = await moderationService.checkMessage(channel, userstate, message);
     if (!isAllowed) return;
 
-    // Auto-clip detection
+    // Increment hype reporter counter for every allowed message
+    hypeReporter.tick();
+
+    // Classify message category (async, non-blocking for chat flow)
+    const classification = await messageClassifier.classify(message, userstate.username);
+    logger.debug({ category: classification.category, confidence: classification.confidence }, '[classifier]');
+
+    // ── Command handling ─────────────────────────────────────────────────
+    if (
+      classification.category === 'command' ||
+      message.startsWith(process.env.COMMAND_PREFIX ?? '!')
+    ) {
+      await commandHandler.handle(channel, userstate, message);
+      return; // commands are structured — don't also NLP-respond
+    }
+
+    // ── Auto-clip detection ──────────────────────────────────────────────
     if (process.env.AUTO_CLIP_ENABLED === 'true') {
       await autoClipDetector.checkMessage(channel, userstate, message);
     }
 
-    // Command handling
-    if (message.startsWith(process.env.COMMAND_PREFIX || '!')) {
-      await commandHandler.handle(channel, userstate, message);
+    // ── NLP natural response (questions + @mentions) ─────────────────────
+    // Resolve the orgId for this channel so the model-router can use the
+    // right personal model and save the interaction to the right training bucket.
+    const channelName = channel.replace('#', '').toLowerCase();
+    const orgId = channelOrgMap.get(channelName) ?? process.env.DEFAULT_ORG_ID ?? '';
+
+    if (orgId) {
+      const reply = await nlpResponder.maybeRespond({
+        orgId,
+        channel,
+        username: userstate.username ?? 'viewer',
+        message,
+        category: classification.category,
+        chatHistory: [], // TODO: wire in a sliding window from Redis chat log
+      });
+      if (reply.shouldRespond && reply.response) {
+        await client.say(channel, `@${userstate.username} ${reply.response}`);
+      }
     }
   });
 
@@ -140,21 +227,17 @@ function setupEventHandlers() {
 }
 
 // Graceful shutdown
-process.on('SIGINT', async () => {
+async function shutdown() {
   logger.info('Shutting down gracefully...');
+  if (hypeReporter) hypeReporter.stop();
   if (obsService) await obsService.disconnect();
   await client.disconnect();
   await redis.quit();
   process.exit(0);
-});
+}
 
-process.on('SIGTERM', async () => {
-  logger.info('Shutting down gracefully...');
-  if (obsService) await obsService.disconnect();
-  await client.disconnect();
-  await redis.quit();
-  process.exit(0);
-});
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
 
 start();
 

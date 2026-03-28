@@ -3,16 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/shared/page-header";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
 import {
   MapPin,
   Globe,
@@ -25,7 +19,7 @@ import {
   Zap,
   TrendingUp,
 } from "lucide-react";
-import { creatorProfile, revenueStats, streamHistory } from "@/lib/mock-data";
+import { creatorProfile, streamHistory } from "@/lib/mock-data";
 import { platformBadge, platformLabel } from "@/lib/colors";
 import { PlatformIcon } from "@/components/icons/platform-icon";
 import { cn } from "@/lib/utils";
@@ -36,8 +30,6 @@ function relDate(iso: string) {
     year: "numeric",
   });
 }
-
-
 
 export default function ProfilePage() {
   const [profile] = useState(creatorProfile);
@@ -66,7 +58,10 @@ export default function ProfilePage() {
               <div className="flex h-24 w-24 items-center justify-center rounded-full bg-primary text-primary-foreground text-3xl font-bold ring-4 ring-primary/20">
                 {profile.avatarInitials}
               </div>
-              <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-emerald-500 ring-2 ring-background" title="Online" />
+              <div
+                className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-emerald-500 ring-2 ring-background"
+                title="Online"
+              />
             </div>
 
             {/* Info */}
@@ -84,14 +79,21 @@ export default function ProfilePage() {
                 </Link>
               </div>
 
-              <p className="mt-3 text-sm text-muted-foreground leading-relaxed max-w-xl">{profile.bio}</p>
+              <p className="mt-3 text-sm text-muted-foreground leading-relaxed max-w-xl">
+                {profile.bio}
+              </p>
 
               <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1">
                   <MapPin className="h-3.5 w-3.5" />
                   {profile.location}
                 </span>
-                <a href={profile.website} target="_blank" rel="noreferrer" className="flex items-center gap-1 hover:text-primary transition-colors">
+                <a
+                  href={profile.website}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1 hover:text-primary transition-colors"
+                >
                   <Globe className="h-3.5 w-3.5" />
                   {profile.website.replace("https://", "")}
                   <ExternalLink className="h-3 w-3" />
@@ -109,10 +111,18 @@ export default function ProfilePage() {
       {/* ── Stats row ──────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { icon: Users,    label: "Total Followers",  value: totalFollowers.toLocaleString() },
-          { icon: Play,     label: "Total Streams",    value: profile.stats.totalStreams.toLocaleString() },
-          { icon: BarChart3, label: "Total Content",   value: profile.stats.totalContent.toLocaleString() },
-          { icon: Zap,      label: "Avg Engagement",   value: profile.stats.avgEngagement },
+          { icon: Users, label: "Total Followers", value: totalFollowers.toLocaleString() },
+          {
+            icon: Play,
+            label: "Total Streams",
+            value: profile.stats.totalStreams.toLocaleString(),
+          },
+          {
+            icon: BarChart3,
+            label: "Total Content",
+            value: profile.stats.totalContent.toLocaleString(),
+          },
+          { icon: Zap, label: "Avg Engagement", value: profile.stats.avgEngagement },
         ].map(({ icon: Icon, label, value }) => (
           <Card key={label}>
             <CardContent className="pt-5 pb-4">
@@ -153,11 +163,17 @@ export default function ProfilePage() {
                       value={(p.followers / (profile.platforms[0]?.followers || 1)) * 100}
                       className="h-1 flex-1 max-w-[160px]"
                     />
-                    <span className="text-xs text-muted-foreground">{p.followers.toLocaleString()} followers</span>
+                    <span className="text-xs text-muted-foreground">
+                      {p.followers.toLocaleString()} followers
+                    </span>
                   </div>
                 </div>
                 <a href={p.url} target="_blank" rel="noreferrer">
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground hover:text-primary"
+                  >
                     <ExternalLink className="h-3.5 w-3.5" />
                   </Button>
                 </a>
@@ -183,7 +199,11 @@ export default function ProfilePage() {
                     <p className="text-sm font-medium">{a.label}</p>
                     <p className="text-xs text-muted-foreground">{a.description}</p>
                     <p className="text-[10px] text-muted-foreground/60 mt-1">
-                      {new Date(a.unlockedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      {new Date(a.unlockedAt).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
                     </p>
                   </div>
                 </div>
@@ -204,7 +224,9 @@ export default function ProfilePage() {
                   <p className="text-sm font-medium truncate">{s.title}</p>
                   <div className="mt-1 flex gap-4 text-xs text-muted-foreground">
                     <span>{s.peakViewers} peak viewers</span>
-                    <span>{Math.round(s.duration / 60)}h {s.duration % 60}m</span>
+                    <span>
+                      {Math.round(s.duration / 60)}h {s.duration % 60}m
+                    </span>
                     <span>{s.clipsCreated} clips</span>
                   </div>
                 </div>
@@ -223,11 +245,17 @@ export default function ProfilePage() {
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">{yppProgress.label}</span>
-                  <span className="font-medium">{yppProgress.current.toLocaleString()} / {yppProgress.target.toLocaleString()}</span>
+                  <span className="font-medium">
+                    {yppProgress.current.toLocaleString()} / {yppProgress.target.toLocaleString()}
+                  </span>
                 </div>
-                <Progress value={(yppProgress.current / yppProgress.target) * 100} className="h-2" />
+                <Progress
+                  value={(yppProgress.current / yppProgress.target) * 100}
+                  className="h-2"
+                />
                 <p className="text-xs text-muted-foreground">
-                  {yppProgress.target - yppProgress.current} more subscribers needed to unlock YouTube Partner Program
+                  {yppProgress.target - yppProgress.current} more subscribers needed to unlock
+                  YouTube Partner Program
                 </p>
               </div>
             </CardContent>
