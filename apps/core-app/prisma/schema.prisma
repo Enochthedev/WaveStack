@@ -20,6 +20,8 @@ model User {
   passwordHash String?   @map("password_hash")
   name         String?
   avatarUrl    String?   @map("avatar_url")
+  timezone     String    @default("UTC") // IANA timezone, e.g. "Africa/Lagos", "America/New_York"
+  locale       String    @default("en")  // BCP 47 language tag
 
   // Training data consent — false means this user's interactions are never used for model training
   dataConsent  Boolean   @default(true) @map("data_consent")
@@ -45,6 +47,7 @@ model Organization {
   slug              String    @unique
   plan              String    @default("free") // free | pro | enterprise
   billingCustomerId String?   @map("billing_customer_id")
+  timezone          String    @default("UTC") // Org-level default; users can override
   settings          Json      @default("{}")
 
   createdAt         DateTime  @default(now()) @map("created_at")

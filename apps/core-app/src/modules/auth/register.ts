@@ -129,7 +129,15 @@ export default async function authRegisterRoutes(app: FastifyInstance) {
 
     const user = await prisma.user.findUnique({
       where: { email, deletedAt: null },
-      select: { id: true, email: true, name: true, avatarUrl: true, passwordHash: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        avatarUrl: true,
+        timezone: true,
+        locale: true,
+        passwordHash: true,
+      },
     });
     if (!user || !user.passwordHash) return sendError(reply, "UNAUTHORIZED", "Invalid credentials");
 
@@ -139,14 +147,23 @@ export default async function authRegisterRoutes(app: FastifyInstance) {
     // Get primary org membership
     const member = await prisma.orgMember.findFirst({
       where: { userId: user.id },
-      include: { org: { select: { id: true, name: true, slug: true, plan: true } } },
+      include: {
+        org: { select: { id: true, name: true, slug: true, plan: true, timezone: true } },
+      },
       orderBy: { createdAt: "asc" },
     });
     if (!member) return sendError(reply, "FORBIDDEN", "No org membership");
 
     const tokens = await issueTokens(user.id, member.orgId, member.role);
     return {
-      user: { id: user.id, email: user.email, name: user.name, avatarUrl: user.avatarUrl },
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        avatarUrl: user.avatarUrl,
+        timezone: user.timezone,
+        locale: user.locale,
+      },
       org: member.org,
       ...tokens,
     };

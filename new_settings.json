@@ -9,3 +9,5 @@
       "Bash(npx tsc:*)",
       "Bash(npm run:*)"
     ]
+  }
+}
