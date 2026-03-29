@@ -5,9 +5,22 @@ import { sendError } from "@shared/errors";
 import { paginate, PaginationQuery } from "@shared/pagination";
 import { hashPassword } from "@shared/crypto";
 
+// IANA timezone validation (basic check — Intl.supportedValuesOf not available everywhere)
+const TIMEZONE_RE = /^[A-Za-z_]+\/[A-Za-z_\/]+$/;
+
 const UpdateBody = z.object({
   name: z.string().min(1).max(100).optional(),
   avatarUrl: z.string().url().optional(),
+  timezone: z
+    .string()
+    .max(50)
+    .regex(TIMEZONE_RE, "Must be a valid IANA timezone (e.g. Africa/Lagos)")
+    .optional(),
+  locale: z
+    .string()
+    .max(10)
+    .regex(/^[a-z]{2}(-[A-Z]{2})?$/, "Must be a BCP 47 tag (e.g. en, en-US)")
+    .optional(),
 });
 
 const CreateBody = z.object({
@@ -51,7 +64,15 @@ export default async function usersRoutes(app: FastifyInstance) {
 
     const user = await prisma.user.findUnique({
       where: { id: userId, deletedAt: null },
-      select: { id: true, email: true, name: true, avatarUrl: true, createdAt: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        avatarUrl: true,
+        timezone: true,
+        locale: true,
+        createdAt: true,
+      },
     });
     if (!user) return sendError(reply, "NOT_FOUND", "User not found");
     return user;
@@ -66,7 +87,15 @@ export default async function usersRoutes(app: FastifyInstance) {
     const user = await prisma.user.update({
       where: { id: userId },
       data,
-      select: { id: true, email: true, name: true, avatarUrl: true, updatedAt: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        avatarUrl: true,
+        timezone: true,
+        locale: true,
+        updatedAt: true,
+      },
     });
     return user;
   });
