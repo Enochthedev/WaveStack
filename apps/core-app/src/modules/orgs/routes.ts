@@ -61,12 +61,12 @@ export default async function orgsRoutes(app: FastifyInstance) {
     const orgId = req.headers["x-org-id"] as string;
     if (!orgId) return sendError(reply, "UNAUTHORIZED", "Missing org context");
 
-    const data = UpdateBody.parse(req.body);
+    const { settings, ...rest } = UpdateBody.parse(req.body);
     const org = await prisma.organization.update({
       where: { id: orgId },
       data: {
-        ...data,
-        ...(data.settings !== undefined && { settings: data.settings as Prisma.InputJsonValue }),
+        ...rest,
+        ...(settings !== undefined && { settings: settings as Prisma.InputJsonValue }),
       },
       select: { id: true, name: true, slug: true, plan: true, settings: true, updatedAt: true },
     });
