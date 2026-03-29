@@ -1,11 +1,11 @@
 # -------- deps (install with dev deps) --------
-FROM node:20-alpine AS deps
+FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json pnpm-lock.yaml* ./
 RUN corepack enable && pnpm i --prod=false
 
 # -------- build (generate + compile TS) --------
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -15,7 +15,7 @@ RUN corepack enable \
  && pnpm tsc-alias
 
 # -------- proddeps (prune dev deps ONLY) --------
-FROM node:20-alpine AS proddeps
+FROM node:22-alpine AS proddeps
 WORKDIR /app
 COPY package.json pnpm-lock.yaml* ./
 # bring node_modules WITH generated client from build
@@ -25,7 +25,7 @@ RUN corepack enable \
  && pnpm store prune
 
 # -------- runtime --------
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=proddeps /app/node_modules ./node_modules

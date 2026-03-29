@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@shared/db";
 import { sendError } from "@shared/errors";
 import { paginate, PaginationQuery } from "@shared/pagination";
@@ -7,13 +8,13 @@ import { paginate, PaginationQuery } from "@shared/pagination";
 const CreateBody = z.object({
   name: z.string().min(1).max(120),
   description: z.string().optional(),
-  settings: z.record(z.unknown()).optional(),
+  settings: z.record(z.string(), z.unknown()).optional(),
 });
 
 const UpdateBody = z.object({
   name: z.string().min(1).max(120).optional(),
   description: z.string().optional(),
-  settings: z.record(z.unknown()).optional(),
+  settings: z.record(z.string(), z.unknown()).optional(),
 });
 
 export default async function routes(app: FastifyInstance) {
@@ -54,7 +55,7 @@ export default async function routes(app: FastifyInstance) {
 
     const data = CreateBody.parse(req.body);
     const project = await prisma.project.create({
-      data: { orgId, ...data, settings: data.settings ?? {} },
+      data: { orgId, ...data, settings: (data.settings ?? {}) as Prisma.InputJsonValue },
     });
     reply.code(201);
     return project;
@@ -71,7 +72,13 @@ export default async function routes(app: FastifyInstance) {
     if (!existing) return sendError(reply, "NOT_FOUND", "Project not found");
 
     const patch = UpdateBody.parse(req.body);
-    return prisma.project.update({ where: { id: req.params.id }, data: patch });
+    return prisma.project.update({
+      where: { id: req.params.id },
+      data: {
+        ...patch,
+        ...(patch.settings !== undefined && { settings: patch.settings as Prisma.InputJsonValue }),
+      },
+    });
   });
 
   // DELETE /v1/projects/:id (soft delete)

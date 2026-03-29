@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@shared/db";
 import { sendError } from "@shared/errors";
 
@@ -14,7 +15,7 @@ const CreateBody = z.object({
 
 const UpdateBody = z.object({
   name: z.string().min(1).max(100).optional(),
-  settings: z.record(z.unknown()).optional(),
+  settings: z.record(z.string(), z.unknown()).optional(),
 });
 
 const MemberRoleBody = z.object({
@@ -63,7 +64,10 @@ export default async function orgsRoutes(app: FastifyInstance) {
     const data = UpdateBody.parse(req.body);
     const org = await prisma.organization.update({
       where: { id: orgId },
-      data,
+      data: {
+        ...data,
+        ...(data.settings !== undefined && { settings: data.settings as Prisma.InputJsonValue }),
+      },
       select: { id: true, name: true, slug: true, plan: true, settings: true, updatedAt: true },
     });
     return org;

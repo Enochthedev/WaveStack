@@ -49,10 +49,15 @@ export function useSSE() {
 
         // ── New approval request ──────────────────────────────────────────────
         case "approval_request":
-          qc.setQueryData<{ data: SSEEvent["request"][] }>(["agents", "approvals"], (prev) =>
-            prev
-              ? { ...prev, data: [event.request, ...prev.data] }
-              : { data: [event.request], meta: { total: 1, limit: 20, offset: 0, hasMore: false } },
+          qc.setQueryData<{ data: Extract<SSEEvent, { type: "approval_request" }>["request"][] }>(
+            ["agents", "approvals"],
+            (prev) =>
+              prev
+                ? { ...prev, data: [event.request, ...prev.data] }
+                : {
+                    data: [event.request],
+                    meta: { total: 1, limit: 20, offset: 0, hasMore: false },
+                  },
           );
           toast.info(`New approval: ${event.request.title}`, {
             action: { label: "Review", onClick: () => window.location.assign("/agents") },

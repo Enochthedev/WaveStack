@@ -42,10 +42,15 @@ export default async function routes(app: FastifyInstance) {
 
     const { key, value, userId, source } = UpsertBody.parse(req.body);
 
-    return prisma.userMemory.upsert({
-      where: { orgId_userId_key: { orgId, userId: userId ?? null, key } },
-      update: { value, source },
-      create: { orgId, userId: userId ?? null, key, value, source },
+    const nullableUserId = userId ?? null;
+    const existing = await prisma.userMemory.findFirst({
+      where: { orgId, userId: nullableUserId, key },
+    });
+    if (existing) {
+      return prisma.userMemory.update({ where: { id: existing.id }, data: { value, source } });
+    }
+    return prisma.userMemory.create({
+      data: { orgId, userId: nullableUserId, key, value, source },
     });
   });
 

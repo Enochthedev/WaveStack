@@ -209,7 +209,7 @@ export default async function routes(app: FastifyInstance) {
     if (!sponsor) return sendError(reply, "NOT_FOUND", "Sponsor not found");
 
     const patch = SponsorBody.partial().parse(req.body);
-    const { dealValue, startDate, endDate, ...rest } = patch;
+    const { dealValue, startDate, endDate, deliverables: _deliverables, ...rest } = patch;
 
     const updated = await prisma.sponsor.update({
       where: { id: req.params.id },

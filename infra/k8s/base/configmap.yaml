@@ -7,7 +7,7 @@ data:
   # Service discovery — internal cluster DNS
   CORE_APP_URL: "http://core-app:3000/api"
   AGENT_RUNTIME_URL: "http://agent-orchestrator:3300"
-  MCP_GATEWAY_URL: "http://mcp-gateway:4000"
+  MCP_GATEWAY_URL: "http://mcp-gateway:4100"
   SKILLS_URL: "http://skills:3500"
   KNOWLEDGE_URL: "http://knowledge:3900"
   AI_PERSONALITY_URL: "http://ai-personality:3800"

@@ -543,7 +543,7 @@ services:
       - PORT=3300
       - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
       - REDIS_URL=redis://redis:6379
-      - MCP_GATEWAY_URL=http://mcp-gateway:3100
+      - MCP_GATEWAY_URL=http://mcp-gateway:4100
       - SKILLS_URL=http://skills:3200
       - KNOWLEDGE_URL=http://knowledge:3400
       - AI_PERSONALITY_URL=http://ai-personality:8200
@@ -561,15 +561,15 @@ services:
       timeout: 10s
       retries: 3
 
-  # ── MCP Gateway :3100 ─────────────────────────────────────────────────────────
+  # ── MCP Gateway :4100 ─────────────────────────────────────────────────────────
   mcp-gateway:
     build:
       context: ./services/mcp-gateway
       dockerfile: Dockerfile
     ports:
-      - "3100:3100"
+      - "4100:4100"
     environment:
-      - PORT=3100
+      - PORT=4100
       - REDIS_URL=redis://redis:6379
       - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
       - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET:-dev-internal-secret}

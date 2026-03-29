@@ -1,5 +1,5 @@
 import "@shared/tracer"; // must be first — patches libs before they load
-import Fastify from "fastify";
+import Fastify, { type FastifyError } from "fastify";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
@@ -67,7 +67,7 @@ app.get("/.well-known/jwks.json", async (_req, reply) => {
 });
 
 // ── Global error handler ─────────────────────────────────────────────────────
-app.setErrorHandler((error, req, reply) => {
+app.setErrorHandler((error: FastifyError, req, reply) => {
   const requestId = reply.getHeader("X-Request-Id") || req.id;
   const isProd = env.NODE_ENV === "production";
 

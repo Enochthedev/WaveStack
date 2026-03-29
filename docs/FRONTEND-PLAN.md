@@ -1059,7 +1059,7 @@ Plan: Add 4 New AI-Native Backend Services
      Execution Engine
 
      The executor walks skill definition steps sequentially, calling POST
-     http://mcp-gateway:3100/api/v1/tools/call for each step. Step outputs are stored in a context
+     http://mcp-gateway:4100/api/v1/tools/call for each step. Step outputs are stored in a context
      object so later steps can reference earlier results via template variables.
 
      Key Dependencies
@@ -1068,7 +1068,7 @@ Plan: Add 4 New AI-Native Backend Services
 
      Environment Variables
 
-     PORT=3200, DATABASE_URL, REDIS_URL, MCP_GATEWAY_URL=http://mcp-gateway:3100, LOG_LEVEL=info
+     PORT=3200, DATABASE_URL, REDIS_URL, MCP_GATEWAY_URL=http://mcp-gateway:4100, LOG_LEVEL=info
 
      ---
      Service 4: Agent Orchestrator (services/agent-orchestrator/)
@@ -1191,7 +1191,7 @@ Plan: Add 4 New AI-Native Backend Services
 
      Environment Variables
 
-     PORT=3300, DATABASE_URL, REDIS_URL, MCP_GATEWAY_URL=http://mcp-gateway:3100,
+     PORT=3300, DATABASE_URL, REDIS_URL, MCP_GATEWAY_URL=http://mcp-gateway:4100,
      SKILLS_URL=http://skills:3200, KNOWLEDGE_URL=http://knowledge:3400,
      AI_PERSONALITY_URL=http://ai-personality:8200, AI_PROVIDER=ollama, OPENAI_API_KEY,
      ANTHROPIC_API_KEY, OLLAMA_BASE_URL, OLLAMA_MODEL=llama2, MAX_CONCURRENT_TASKS=10,
@@ -1219,7 +1219,7 @@ Plan: Add 4 New AI-Native Backend Services
          PORT: 3200
          DATABASE_URL: postgresql://postgres:wave@postgres:5432/wave
          REDIS_URL: redis://redis:6379
-         MCP_GATEWAY_URL: http://mcp-gateway:3100
+         MCP_GATEWAY_URL: http://mcp-gateway:4100
        depends_on: [postgres, redis, mcp-gateway]
        restart: unless-stopped
 
@@ -1229,7 +1229,7 @@ Plan: Add 4 New AI-Native Backend Services
        environment:
          DATABASE_URL: postgresql://postgres:wave@postgres:5432/wave
          REDIS_URL: redis://redis:6379
-         MCP_GATEWAY_URL: http://mcp-gateway:3100
+         MCP_GATEWAY_URL: http://mcp-gateway:4100
          SKILLS_URL: http://skills:3200
          KNOWLEDGE_URL: http://knowledge:3400
          AI_PERSONALITY_URL: http://ai-personality:8200

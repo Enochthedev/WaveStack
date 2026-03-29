@@ -7,6 +7,6 @@ import { logger } from '../../shared/logger';
 export const createHttpTransport = (config: HttpConfig): SSEClientTransport => {
   logger.debug({ url: config.url }, 'Creating HTTP (SSE wrapper) Transport');
   return new SSEClientTransport(new URL(config.url), {
-    headers: config.headers as Record<string, string>,
+    requestInit: config.headers ? { headers: config.headers } : undefined,
   });
 };

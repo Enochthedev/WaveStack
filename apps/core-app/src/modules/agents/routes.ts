@@ -5,6 +5,7 @@
  */
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@shared/db";
 import { sendError } from "@shared/errors";
 import { paginate, PaginationQuery } from "@shared/pagination";
@@ -20,7 +21,7 @@ const AutonomyBody = z.object({
   isEnabled: z.boolean().optional(),
   systemPrompt: z.string().optional(),
   allowedSkills: z.array(z.string()).optional(),
-  config: z.record(z.unknown()).optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
 });
 
 const ApprovalBody = z.object({
@@ -70,8 +71,8 @@ export default async function agentsRoutes(app: FastifyInstance) {
     const body = AutonomyBody.parse(req.body);
     const config = await prisma.agentConfig.upsert({
       where: { orgId_agentType: { orgId, agentType: body.agentType } },
-      create: { orgId, ...body },
-      update: body,
+      create: { orgId, ...body, config: body.config as Prisma.InputJsonValue },
+      update: { ...body, config: body.config as Prisma.InputJsonValue },
     });
     return config;
   });
