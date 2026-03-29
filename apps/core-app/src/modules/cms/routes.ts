@@ -71,12 +71,12 @@ export default async function routes(app: FastifyInstance) {
     });
     if (!existing) return sendError(reply, "NOT_FOUND", "Project not found");
 
-    const patch = UpdateBody.parse(req.body);
+    const { settings, ...rest } = UpdateBody.parse(req.body);
     return prisma.project.update({
       where: { id: req.params.id },
       data: {
-        ...patch,
-        ...(patch.settings !== undefined && { settings: patch.settings as Prisma.InputJsonValue }),
+        ...rest,
+        ...(settings !== undefined && { settings: settings as Prisma.InputJsonValue }),
       },
     });
   });
