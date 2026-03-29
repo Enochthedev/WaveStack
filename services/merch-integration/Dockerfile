@@ -1,7 +1,7 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 WORKDIR /app
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt || pip install --no-cache-dir fastapi uvicorn pydantic pydantic-settings redis httpx python-multipart
+RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 EXPOSE 9800
 CMD ["python", "-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "9800"]

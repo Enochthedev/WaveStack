@@ -7,7 +7,8 @@ type ErrorCode =
   | "BAD_REQUEST"
   | "CONFLICT"
   | "UNPROCESSABLE"
-  | "INTERNAL";
+  | "INTERNAL"
+  | "BAD_GATEWAY";
 
 const statusMap: Record<ErrorCode, number> = {
   NOT_FOUND: 404,
@@ -17,6 +18,7 @@ const statusMap: Record<ErrorCode, number> = {
   CONFLICT: 409,
   UNPROCESSABLE: 422,
   INTERNAL: 500,
+  BAD_GATEWAY: 502,
 };
 
 export function sendError(

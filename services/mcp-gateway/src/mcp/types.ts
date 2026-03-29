@@ -4,18 +4,18 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 export const stdioConfigSchema = z.object({
   command: z.string(),
   args: z.array(z.string()).optional(),
-  env: z.record(z.string()).optional(),
+  env: z.record(z.string(), z.string()).optional(),
 });
 
 export const sseConfigSchema = z.object({
   url: z.string().url(),
-  env: z.record(z.string()).optional(),
+  env: z.record(z.string(), z.string()).optional(),
 });
 
 // Currently identical to SSE or custom
 export const httpConfigSchema = z.object({
   url: z.string().url(),
-  headers: z.record(z.string()).optional(),
+  headers: z.record(z.string(), z.string()).optional(),
 });
 
 export type StdioConfig = z.infer<typeof stdioConfigSchema>;

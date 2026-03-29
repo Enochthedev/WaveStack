@@ -10,7 +10,7 @@ const CreateBody = z.object({
   trigger: z.enum(["manual", "schedule", "event"]),
   cronExpr: z.string().optional(),
   eventType: z.string().optional(),
-  steps: z.array(z.object({ type: z.string(), config: z.record(z.unknown()) })).min(1),
+  steps: z.array(z.object({ type: z.string(), config: z.record(z.string(), z.unknown()) })).min(1),
 });
 
 const UpdateBody = CreateBody.partial();

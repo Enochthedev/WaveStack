@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@shared/db";
 import { sendError } from "@shared/errors";
 import { paginate, PaginationQuery } from "@shared/pagination";
@@ -21,7 +22,7 @@ const EventBody = z.object({
   eventType: z.string().min(1).max(50),
   timestamp: z.string().datetime(),
   data: z
-    .record(z.unknown())
+    .record(z.string(), z.unknown())
     .default({})
     .refine((obj) => JSON.stringify(obj).length < 10_000, "Event data must be under 10KB"),
 });
@@ -112,7 +113,7 @@ export default async function streamRoutes(app: FastifyInstance) {
         streamSessionId: req.params.id,
         eventType: body.eventType,
         timestamp: new Date(body.timestamp),
-        data: body.data,
+        data: body.data as Prisma.InputJsonValue,
       },
     });
     reply.code(201);

@@ -39,7 +39,7 @@ export class McpManager {
 
     const client = new Client(
       { name: 'mcp-gateway', version: '1.0.0' },
-      { capabilities: { tools: {} } }
+      { capabilities: {} }
     );
 
     const connectionInfo: ActiveConnection = {
@@ -119,14 +119,14 @@ export class McpManager {
             where: { serverId_name: { serverId, name: tool.name } },
             update: {
               description: tool.description,
-              inputSchema: tool.inputSchema,
+              inputSchema: tool.inputSchema as any,
               isEnabled: true,
             },
             create: {
               serverId,
               name: tool.name,
               description: tool.description,
-              inputSchema: tool.inputSchema,
+              inputSchema: tool.inputSchema as any,
               isEnabled: true,
             },
           });

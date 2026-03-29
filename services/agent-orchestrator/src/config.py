@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     INTERNAL_SERVICE_SECRET: str = "dev-internal-secret"
 
     # Peer services
-    MCP_GATEWAY_URL: str = "http://mcp-gateway:4000"
+    MCP_GATEWAY_URL: str = "http://mcp-gateway:4100"
     SKILLS_URL: str = "http://skills:3500"
     KNOWLEDGE_URL: str = "http://knowledge:3900"
     AI_PERSONALITY_URL: str = "http://ai-personality:3800"
