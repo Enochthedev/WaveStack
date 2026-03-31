@@ -15,6 +15,7 @@ import {
   FileVideo,
   Swords,
   Sparkles,
+  Store,
   type LucideIcon,
 } from "lucide-react";
 
@@ -35,6 +36,8 @@ export type EmptyStatePreset =
   | "no-search"
   | "no-analytics"
   | "no-agents"
+  | "no-skills"
+  | "no-marketplace-skills"
   | "offline"
   | "generic";
 
@@ -108,6 +111,16 @@ const PRESETS: Record<EmptyStatePreset, { icon: LucideIcon; title: string; subti
     icon: Bot,
     title: "No agents running",
     subtitle: "Enable an agent to start automating your content pipeline.",
+  },
+  "no-skills": {
+    icon: Sparkles,
+    title: "No skills installed",
+    subtitle: "Browse the marketplace to discover skills your agents can run.",
+  },
+  "no-marketplace-skills": {
+    icon: Store,
+    title: "No skills found",
+    subtitle: "Try a different category or check back as new skills are added.",
   },
   offline: {
     icon: WifiOff,

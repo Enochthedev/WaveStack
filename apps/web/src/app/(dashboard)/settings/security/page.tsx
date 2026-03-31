@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeOff, LogOut, Loader2, Smartphone, Monitor } from "lucide-react";
-import { activeSessions } from "@/lib/mock-data";
+// TODO: wire to real session API when available
 
 function relTime(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
@@ -22,14 +22,23 @@ function relTime(iso: string) {
 
 export default function SecurityPage() {
   const [showCurrent, setShowCurrent] = useState(false);
-  const [showNew,     setShowNew]     = useState(false);
-  const [currentPw,   setCurrentPw]  = useState("");
-  const [newPw,       setNewPw]      = useState("");
-  const [confirmPw,   setConfirmPw]  = useState("");
-  const [twoFA,       setTwoFA]      = useState(false);
-  const [saving,      setSaving]     = useState(false);
-  const [sessions,    setSessions]   = useState(activeSessions);
-  const [revoking,    setRevoking]   = useState<string | null>(null);
+  const [showNew, setShowNew] = useState(false);
+  const [currentPw, setCurrentPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [twoFA, setTwoFA] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [sessions, setSessions] = useState<
+    {
+      id: string;
+      device: string;
+      browser: string;
+      location: string;
+      lastActiveAt: string;
+      isCurrent: boolean;
+    }[]
+  >([]);
+  const [revoking, setRevoking] = useState<string | null>(null);
 
   async function updatePassword() {
     if (!currentPw || !newPw || newPw !== confirmPw) {
@@ -39,7 +48,9 @@ export default function SecurityPage() {
     setSaving(true);
     await new Promise((r) => setTimeout(r, 900));
     setSaving(false);
-    setCurrentPw(""); setNewPw(""); setConfirmPw("");
+    setCurrentPw("");
+    setNewPw("");
+    setConfirmPw("");
     toast.success("Password updated");
   }
 
@@ -54,7 +65,9 @@ export default function SecurityPage() {
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader><CardTitle>Change Password</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>Change Password</CardTitle>
+        </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>Current password</Label>
@@ -149,9 +162,11 @@ export default function SecurityPage() {
           {sessions.map((s) => (
             <div key={s.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
-                {s.device.includes("iPhone")
-                  ? <Smartphone className="h-4 w-4 text-muted-foreground" />
-                  : <Monitor className="h-4 w-4 text-muted-foreground" />}
+                {s.device.includes("iPhone") ? (
+                  <Smartphone className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <Monitor className="h-4 w-4 text-muted-foreground" />
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -174,9 +189,11 @@ export default function SecurityPage() {
                   disabled={revoking === s.id}
                   onClick={() => revokeSession(s.id)}
                 >
-                  {revoking === s.id
-                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    : <LogOut className="h-3.5 w-3.5" />}
+                  {revoking === s.id ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <LogOut className="h-3.5 w-3.5" />
+                  )}
                   Revoke
                 </Button>
               )}

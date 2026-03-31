@@ -40,6 +40,9 @@ import type {
   Invoice as InvoiceType,
   TeamMember as TeamMemberType,
   TeamInvite as TeamInviteType,
+  StreamSession,
+  PlatformStatus,
+  QueueItem,
 } from "@/types";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
@@ -178,38 +181,8 @@ export type ApprovalRequest = {
   createdAt: string;
 };
 
-// ─── Stream types ─────────────────────────────────────────────────────────────
-
-export type StreamSession = {
-  id: string;
-  title?: string;
-  platform: string;
-  status: "live" | "ended" | "pending";
-  viewerCount: number;
-  startedAt: string;
-  endedAt?: string;
-};
-
-// ─── Queue types ──────────────────────────────────────────────────────────────
-
-export type QueueItem = {
-  id: string;
-  title: string;
-  caption?: string;
-  platforms: string[];
-  status: "queued" | "scheduled" | "processing" | "published" | "failed";
-  scheduleAt: string;
-};
-
-// ─── Platform types ───────────────────────────────────────────────────────────
-
-export type PlatformStatus = {
-  platform: string;
-  connected: boolean;
-  username?: string;
-  expiresAt?: string;
-  scopes?: string[];
-};
+// Re-export for consumers that import from api.ts
+export type { StreamSession, QueueItem, PlatformStatus };
 
 // ─── User types ───────────────────────────────────────────────────────────────
 

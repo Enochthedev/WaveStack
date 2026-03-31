@@ -1,7 +1,8 @@
-FROM python:3.12-slim
+FROM node:22-alpine
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY package*.json ./
+RUN npm install
 COPY . .
-EXPOSE 9800
-CMD ["python", "-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "9800"]
+RUN npm run build
+EXPOSE 4400
+CMD ["npm", "start"]

@@ -1,22 +1,17 @@
 "use client";
 
-import { useState } from "react";
-import { toast } from "sonner";
-import { agentTasks as initialTasks } from "@/lib/mock-data";
+import { useAgentTasks, useActOnApproval } from "@/lib/hooks/use-agents";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
+import type { AgentTask } from "@/lib/api";
 
-type Task = (typeof initialTasks)[number] & { status: string };
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function relativeTime(dateStr: string) {
   const diffMs = Date.now() - new Date(dateStr).getTime();
@@ -24,24 +19,42 @@ function relativeTime(dateStr: string) {
   if (diffMin < 60) return `${diffMin}m ago`;
   const diffHr = Math.floor(diffMin / 60);
   if (diffHr < 24) return `${diffHr}h ago`;
-  const diffDays = Math.floor(diffHr / 24);
-  return `${diffDays}d ago`;
+  return `${Math.floor(diffHr / 24)}d ago`;
 }
+
+// ── Skeleton ──────────────────────────────────────────────────────────────────
+
+function TaskSkeleton() {
+  return (
+    <Card>
+      <CardContent className="flex items-center justify-between py-4 gap-4">
+        <div className="flex-1 space-y-2">
+          <div className="h-4 w-56 rounded bg-muted animate-pulse" />
+          <div className="flex gap-2">
+            <div className="h-3 w-20 rounded bg-muted animate-pulse" />
+            <div className="h-3 w-16 rounded bg-muted animate-pulse" />
+          </div>
+        </div>
+        <div className="h-6 w-20 rounded bg-muted animate-pulse" />
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Task Card ─────────────────────────────────────────────────────────────────
 
 function TaskCard({
   task,
+  actingId,
   onApprove,
   onReject,
-  approving,
-  rejecting,
 }: {
-  task: Task;
+  task: AgentTask;
+  actingId: string | null;
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
-  approving: string | null;
-  rejecting: string | null;
 }) {
-  const isActioning = approving === task.id || rejecting === task.id;
+  const isActioning = actingId === task.id;
 
   return (
     <Card>
@@ -53,12 +66,8 @@ function TaskCard({
               <Badge variant="secondary" className="capitalize">
                 {task.agentType}
               </Badge>
-              <span className="text-xs text-muted-foreground">
-                Priority: {task.priority}
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {relativeTime(task.createdAt)}
-              </span>
+              <span className="text-xs text-muted-foreground">Priority: {task.priority}</span>
+              <span className="text-xs text-muted-foreground">{relativeTime(task.createdAt)}</span>
             </div>
           </div>
         </div>
@@ -66,13 +75,8 @@ function TaskCard({
           <StatusBadge status={task.status} />
           {task.status === "awaiting_approval" && (
             <>
-              <Button
-                size="sm"
-                variant="default"
-                disabled={isActioning}
-                onClick={() => onApprove(task.id)}
-              >
-                {approving === task.id ? (
+              <Button size="sm" disabled={isActioning} onClick={() => onApprove(task.id)}>
+                {isActioning ? (
                   <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
                 ) : (
                   <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
@@ -85,7 +89,7 @@ function TaskCard({
                 disabled={isActioning}
                 onClick={() => onReject(task.id)}
               >
-                {rejecting === task.id ? (
+                {isActioning ? (
                   <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
                 ) : (
                   <XCircle className="h-3.5 w-3.5 mr-1" />
@@ -100,86 +104,109 @@ function TaskCard({
   );
 }
 
-export default function AgentTasksPage() {
-  const [tasks, setTasks] = useState<Task[]>(initialTasks as Task[]);
-  const [approving, setApproving] = useState<string | null>(null);
-  const [rejecting, setRejecting] = useState<string | null>(null);
+// ── Page ──────────────────────────────────────────────────────────────────────
 
-  async function handleApprove(id: string) {
-    setApproving(id);
-    await new Promise((r) => setTimeout(r, 700));
-    setTasks((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, status: "completed" } : t))
-    );
-    setApproving(null);
-    toast.success("Task approved — agent executing");
+export default function AgentTasksPage() {
+  const { data, isLoading, isError } = useAgentTasks({ limit: 100 });
+  const actOnApproval = useActOnApproval();
+
+  const tasks = data?.data ?? [];
+  const actingId = actOnApproval.isPending ? (actOnApproval.variables?.id ?? null) : null;
+
+  function handleApprove(id: string) {
+    actOnApproval.mutate({ id, action: "approve" });
   }
 
-  async function handleReject(id: string) {
-    setRejecting(id);
-    await new Promise((r) => setTimeout(r, 500));
-    setTasks((prev) => prev.filter((t) => t.id !== id));
-    setRejecting(null);
-    toast.success("Task rejected and removed");
+  function handleReject(id: string) {
+    actOnApproval.mutate({ id, action: "reject" });
   }
 
   const runningTasks = tasks.filter((t) => t.status === "running");
   const awaitingTasks = tasks.filter((t) => t.status === "awaiting_approval");
   const completedTasks = tasks.filter((t) => t.status === "completed");
 
-  const cardProps = { onApprove: handleApprove, onReject: handleReject, approving, rejecting };
+  const cardProps = { actingId, onApprove: handleApprove, onReject: handleReject };
+
+  if (isError) {
+    return (
+      <div className="space-y-8">
+        <PageHeader title="Agent Tasks" description="Monitor and manage agent work" />
+        <EmptyState preset="offline" subtitle="Could not load tasks. Check your connection." />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
-      <PageHeader
-        title="Agent Tasks"
-        description="Monitor and manage agent work"
-      />
+      <PageHeader title="Agent Tasks" description="Monitor and manage agent work" />
 
       <Tabs defaultValue="all">
         <TabsList>
-          <TabsTrigger value="all">All ({tasks.length})</TabsTrigger>
-          <TabsTrigger value="running">Running ({runningTasks.length})</TabsTrigger>
-          <TabsTrigger value="awaiting_approval">
-            Awaiting ({awaitingTasks.length})
+          <TabsTrigger value="all">All{!isLoading && ` (${tasks.length})`}</TabsTrigger>
+          <TabsTrigger value="running">
+            Running{!isLoading && ` (${runningTasks.length})`}
           </TabsTrigger>
-          <TabsTrigger value="completed">Completed ({completedTasks.length})</TabsTrigger>
+          <TabsTrigger value="awaiting_approval">
+            Awaiting{!isLoading && ` (${awaitingTasks.length})`}
+          </TabsTrigger>
+          <TabsTrigger value="completed">
+            Completed{!isLoading && ` (${completedTasks.length})`}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="all" className="mt-4 space-y-3">
-          {tasks.length === 0 && (
-            <p className="text-sm text-muted-foreground">No tasks.</p>
+          {isLoading ? (
+            Array.from({ length: 3 }).map((_, i) => <TaskSkeleton key={i} />)
+          ) : tasks.length === 0 ? (
+            <EmptyState
+              preset="generic"
+              title="No tasks yet"
+              subtitle="Your agents haven't created any tasks. Enable an agent to get started."
+              size="lg"
+            />
+          ) : (
+            tasks.map((task) => <TaskCard key={task.id} task={task} {...cardProps} />)
           )}
-          {tasks.map((task) => (
-            <TaskCard key={task.id} task={task} {...cardProps} />
-          ))}
         </TabsContent>
 
         <TabsContent value="running" className="mt-4 space-y-3">
-          {runningTasks.length === 0 && (
-            <p className="text-sm text-muted-foreground">No running tasks.</p>
+          {isLoading ? (
+            <TaskSkeleton />
+          ) : runningTasks.length === 0 ? (
+            <EmptyState
+              preset="generic"
+              title="No running tasks"
+              subtitle="Nothing is executing right now."
+              size="md"
+            />
+          ) : (
+            runningTasks.map((task) => <TaskCard key={task.id} task={task} {...cardProps} />)
           )}
-          {runningTasks.map((task) => (
-            <TaskCard key={task.id} task={task} {...cardProps} />
-          ))}
         </TabsContent>
 
         <TabsContent value="awaiting_approval" className="mt-4 space-y-3">
-          {awaitingTasks.length === 0 && (
-            <p className="text-sm text-muted-foreground">No tasks awaiting approval.</p>
+          {isLoading ? (
+            <TaskSkeleton />
+          ) : awaitingTasks.length === 0 ? (
+            <EmptyState preset="no-approvals" size="md" />
+          ) : (
+            awaitingTasks.map((task) => <TaskCard key={task.id} task={task} {...cardProps} />)
           )}
-          {awaitingTasks.map((task) => (
-            <TaskCard key={task.id} task={task} {...cardProps} />
-          ))}
         </TabsContent>
 
         <TabsContent value="completed" className="mt-4 space-y-3">
-          {completedTasks.length === 0 && (
-            <p className="text-sm text-muted-foreground">No completed tasks.</p>
+          {isLoading ? (
+            <TaskSkeleton />
+          ) : completedTasks.length === 0 ? (
+            <EmptyState
+              preset="generic"
+              title="No completed tasks"
+              subtitle="Approved tasks will appear here once done."
+              size="md"
+            />
+          ) : (
+            completedTasks.map((task) => <TaskCard key={task.id} task={task} {...cardProps} />)
           )}
-          {completedTasks.map((task) => (
-            <TaskCard key={task.id} task={task} {...cardProps} />
-          ))}
         </TabsContent>
       </Tabs>
     </div>

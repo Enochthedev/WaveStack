@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { chatMessages } from "@/lib/mock-data";
+// Chat history is ephemeral — starts fresh each session
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -103,7 +103,15 @@ export function Companion() {
   const [mounted, setMounted] = useState(false);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<Message[]>(chatMessages);
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: "welcome",
+      role: "assistant",
+      content:
+        "Hey! I'm Wave, your AI companion. Ask me anything about your content, streams, or analytics.",
+      agentType: "wave",
+    },
+  ]);
   const [isTyping, setIsTyping] = useState(false);
 
   const { avatarUrl } = useCompanionAvatar();

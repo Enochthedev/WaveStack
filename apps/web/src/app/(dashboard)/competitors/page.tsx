@@ -1,14 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useCompetitors, useAddCompetitor, useRemoveCompetitor } from "@/lib/hooks/use-competitors";
 import { PageHeader } from "@/components/shared/page-header";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+import { EmptyState } from "@/components/shared/empty-state";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,140 +15,103 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Plus,
-  Search,
-  TrendingUp,
-  TrendingDown,
-  Minus,
-  Trash2,
-  ChevronUp,
-  ChevronDown,
-} from "lucide-react";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from "recharts";
-import { competitors, competitorGrowth } from "@/lib/mock-data";
+import { Plus, Search, TrendingUp, TrendingDown, Minus, Trash2, Loader2 } from "lucide-react";
 import { platformBadge, platformLabel } from "@/lib/colors";
 import { PlatformIcon } from "@/components/icons/platform-icon";
 import { cn } from "@/lib/utils";
+import type { Competitor } from "@/types";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ── Helpers ─────────────────────────────────────────────────────────────────
 
-type Competitor = (typeof competitors)[0];
-type SortKey = "followers" | "followersChange" | "avgViewers" | "uploadsPerWeek" | "grade";
-type SortDir = "asc" | "desc";
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function gradeColor(grade: string) {
-  const g = grade[0];
-  if (g === "A") return "bg-emerald-500/10 text-emerald-600 border-emerald-500/20";
-  if (g === "B") return "bg-sky-500/10 text-sky-600 border-sky-500/20";
-  if (g === "C") return "bg-amber-500/10 text-amber-600 border-amber-500/20";
-  return "bg-muted text-muted-foreground";
-}
-
-function ChangeCell({ value }: { value: number }) {
-  if (value > 0) return (
-    <span className="flex items-center gap-0.5 text-emerald-600 text-xs font-medium">
-      <TrendingUp className="h-3 w-3" />
-      +{value.toLocaleString()}
-    </span>
-  );
-  if (value < 0) return (
+function ChangeCell({ value }: { value?: number }) {
+  if (!value || value === 0) {
+    return (
+      <span className="flex items-center gap-0.5 text-muted-foreground text-xs">
+        <Minus className="h-3 w-3" />0
+      </span>
+    );
+  }
+  if (value > 0)
+    return (
+      <span className="flex items-center gap-0.5 text-emerald-600 text-xs font-medium">
+        <TrendingUp className="h-3 w-3" />+{value.toLocaleString()}
+      </span>
+    );
+  return (
     <span className="flex items-center gap-0.5 text-destructive text-xs font-medium">
       <TrendingDown className="h-3 w-3" />
       {value.toLocaleString()}
     </span>
   );
+}
+
+// ── Skeletons ───────────────────────────────────────────────────────────────
+
+function TableSkeleton() {
   return (
-    <span className="flex items-center gap-0.5 text-muted-foreground text-xs">
-      <Minus className="h-3 w-3" />
-      0
-    </span>
+    <div className="divide-y divide-border">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="flex items-center gap-4 px-4 py-3 animate-pulse">
+          <div className="h-8 w-8 rounded-full bg-muted" />
+          <div className="h-4 w-32 rounded bg-muted flex-1" />
+          <div className="h-4 w-16 rounded bg-muted" />
+          <div className="h-4 w-16 rounded bg-muted" />
+          <div className="h-4 w-12 rounded bg-muted" />
+        </div>
+      ))}
+    </div>
   );
 }
 
-// Line colours for chart — one per entity
-const LINE_COLORS = ["#f97316", "#3b82f6", "#10b981", "#a855f7", "#ef4444"];
-const LINE_KEYS   = ["you", ...competitors.map((c) => c.name)];
+function CardSkeleton() {
+  return (
+    <Card className="animate-pulse">
+      <CardContent className="pt-5 pb-4 space-y-3">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-2">
+            <div className="h-9 w-9 rounded-full bg-muted" />
+            <div className="space-y-1">
+              <div className="h-4 w-24 rounded bg-muted" />
+              <div className="h-3 w-16 rounded bg-muted" />
+            </div>
+          </div>
+        </div>
+        <div className="h-4 w-20 rounded bg-muted" />
+        <div className="grid grid-cols-2 gap-2">
+          <div className="h-8 rounded bg-muted" />
+          <div className="h-8 rounded bg-muted" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CompetitorsPage() {
-  const [list,    setList]    = useState<Competitor[]>(competitors);
-  const [query,   setQuery]   = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("followers");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [newHandle,   setNewHandle]   = useState("");
+  const { data: competitorsData, isLoading, isError } = useCompetitors();
+  const addCompetitor = useAddCompetitor();
+  const removeCompetitor = useRemoveCompetitor();
+
+  const list: Competitor[] = competitorsData ?? [];
+
+  const [query, setQuery] = useState("");
+  const [newHandle, setNewHandle] = useState("");
   const [newPlatform, setNewPlatform] = useState("twitch");
 
-  function sort(key: SortKey) {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortDir("desc");
-    }
-  }
-
-  function remove(id: string) {
-    setList((prev) => prev.filter((c) => c.id !== id));
-  }
-
-  function addCompetitor() {
+  function handleAdd() {
     if (!newHandle.trim()) return;
-    const fake: Competitor = {
-      id:              String(Date.now()),
-      name:            newHandle.replace("@", ""),
-      handle:          newHandle.startsWith("@") ? newHandle : `@${newHandle}`,
-      platform:        newPlatform,
-      followers:       0,
-      followersChange: 0,
-      avgViewers:      0,
-      uploadsPerWeek:  0,
-      grade:           "–",
-    };
-    setList((prev) => [...prev, fake]);
-    setNewHandle("");
+    addCompetitor.mutate(
+      { channelName: newHandle.replace("@", ""), platform: newPlatform },
+      { onSuccess: () => setNewHandle("") },
+    );
   }
 
-  const sorted = [...list]
-    .filter((c) =>
-      c.name.toLowerCase().includes(query.toLowerCase()) ||
-      c.handle.toLowerCase().includes(query.toLowerCase())
-    )
-    .sort((a, b) => {
-      const av = a[sortKey] as number | string;
-      const bv = b[sortKey] as number | string;
-      const cmp = av < bv ? -1 : av > bv ? 1 : 0;
-      return sortDir === "asc" ? cmp : -cmp;
-    });
-
-  function SortIcon({ k }: { k: SortKey }) {
-    if (sortKey !== k) return <ChevronUp className="h-3 w-3 opacity-20" />;
-    return sortDir === "asc"
-      ? <ChevronUp   className="h-3 w-3 text-primary" />
-      : <ChevronDown className="h-3 w-3 text-primary" />;
+  function handleRemove(id: string) {
+    removeCompetitor.mutate(id);
   }
 
-  // Remap growth data keys to match competitor names
-  const chartData = competitorGrowth.map((row) => ({
-    month:             row.month,
-    you:               row.you,
-    StreamKing:        row.StreamKing,
-    ProCodeCast:       row.ProCodeCast,
-    NightShiftGaming:  row.NightShiftGaming,
-    TechStreamDaily:   row.TechStreamDaily,
-  }));
+  const filtered = list.filter((c) => c.channelName.toLowerCase().includes(query.toLowerCase()));
 
   return (
     <div className="space-y-8">
@@ -165,7 +124,9 @@ export default function CompetitorsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Add Competitor</CardTitle>
-          <CardDescription>Search by handle to track another creator&apos;s public stats.</CardDescription>
+          <CardDescription>
+            Search by handle to track another creator&apos;s public stats.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex gap-2 max-w-xl">
@@ -176,7 +137,7 @@ export default function CompetitorsPage() {
                 placeholder="@handle or channel name…"
                 value={newHandle}
                 onChange={(e) => setNewHandle(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && addCompetitor()}
+                onKeyDown={(e) => e.key === "Enter" && handleAdd()}
               />
             </div>
             <Select value={newPlatform} onValueChange={setNewPlatform}>
@@ -190,8 +151,12 @@ export default function CompetitorsPage() {
                 <SelectItem value="instagram">Instagram</SelectItem>
               </SelectContent>
             </Select>
-            <Button onClick={addCompetitor} disabled={!newHandle.trim()}>
-              <Plus className="h-4 w-4 mr-1.5" />
+            <Button onClick={handleAdd} disabled={!newHandle.trim() || addCompetitor.isPending}>
+              {addCompetitor.isPending ? (
+                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4 mr-1.5" />
+              )}
               Track
             </Button>
           </div>
@@ -215,215 +180,141 @@ export default function CompetitorsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                  <th className="pb-2 pr-4 font-medium w-52">Creator</th>
-                  <th className="pb-2 px-3 font-medium">
-                    <button className="flex items-center gap-1 hover:text-foreground transition-colors" onClick={() => sort("followers")}>
-                      Followers <SortIcon k="followers" />
-                    </button>
-                  </th>
-                  <th className="pb-2 px-3 font-medium">
-                    <button className="flex items-center gap-1 hover:text-foreground transition-colors" onClick={() => sort("followersChange")}>
-                      7d Growth <SortIcon k="followersChange" />
-                    </button>
-                  </th>
-                  <th className="pb-2 px-3 font-medium">
-                    <button className="flex items-center gap-1 hover:text-foreground transition-colors" onClick={() => sort("avgViewers")}>
-                      Avg Viewers <SortIcon k="avgViewers" />
-                    </button>
-                  </th>
-                  <th className="pb-2 px-3 font-medium">
-                    <button className="flex items-center gap-1 hover:text-foreground transition-colors" onClick={() => sort("uploadsPerWeek")}>
-                      Posts/wk <SortIcon k="uploadsPerWeek" />
-                    </button>
-                  </th>
-                  <th className="pb-2 px-3 font-medium">
-                    <button className="flex items-center gap-1 hover:text-foreground transition-colors" onClick={() => sort("grade")}>
-                      Grade <SortIcon k="grade" />
-                    </button>
-                  </th>
-                  <th className="pb-2 pl-3 font-medium w-8" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {/* "You" row */}
-                <tr className="bg-primary/5">
-                  <td className="py-3 pr-4">
-                    <div className="flex items-center gap-2">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">
-                        WS
-                      </div>
-                      <div>
-                        <p className="font-medium text-sm">You (WaveStack)</p>
-                        <p className="text-xs text-muted-foreground">@wavestack</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-3 px-3 font-medium">45,200</td>
-                  <td className="py-3 px-3"><ChangeCell value={1700} /></td>
-                  <td className="py-3 px-3 text-muted-foreground">31</td>
-                  <td className="py-3 px-3 text-muted-foreground">5</td>
-                  <td className="py-3 px-3">
-                    <Badge variant="outline" className={cn("text-xs", gradeColor("B"))}>B</Badge>
-                  </td>
-                  <td className="py-3 pl-3" />
-                </tr>
-
-                {sorted.map((c) => (
-                  <tr key={c.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="py-3 pr-4">
-                      <div className="flex items-center gap-2">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold">
-                          {c.name[0]}
-                        </div>
-                        <div>
-                          <p className="font-medium text-sm">{c.name}</p>
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs text-muted-foreground">{c.handle}</span>
-                            <Badge
-                              variant="outline"
-                              className={cn("text-[10px] h-4 py-0 px-1 gap-0.5", platformBadge[c.platform])}
-                            >
-                              <PlatformIcon platform={c.platform} size={10} branded />
-                              {platformLabel[c.platform] ?? c.platform}
-                            </Badge>
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3 px-3 font-medium">{c.followers.toLocaleString()}</td>
-                    <td className="py-3 px-3"><ChangeCell value={c.followersChange} /></td>
-                    <td className="py-3 px-3 text-muted-foreground">
-                      {c.avgViewers > 0 ? c.avgViewers.toLocaleString() : "—"}
-                    </td>
-                    <td className="py-3 px-3 text-muted-foreground">{c.uploadsPerWeek}</td>
-                    <td className="py-3 px-3">
-                      <Badge variant="outline" className={cn("text-xs", gradeColor(c.grade))}>
-                        {c.grade}
-                      </Badge>
-                    </td>
-                    <td className="py-3 pl-3">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                        onClick={() => remove(c.id)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </td>
+          {isError ? (
+            <EmptyState preset="offline" subtitle="Could not load competitors." size="sm" />
+          ) : isLoading ? (
+            <TableSkeleton />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                    <th className="pb-2 pr-4 font-medium w-52">Creator</th>
+                    <th className="pb-2 px-3 font-medium">Followers</th>
+                    <th className="pb-2 px-3 font-medium">Growth Rate</th>
+                    <th className="pb-2 px-3 font-medium">Avg Viewers</th>
+                    <th className="pb-2 pl-3 font-medium w-8" />
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* ── Growth chart ───────────────────────────────────────── */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Follower Growth (6 months)</CardTitle>
-          <CardDescription>Compare your follower trajectory against tracked competitors.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={320}>
-            <LineChart data={chartData} margin={{ top: 5, right: 16, left: 0, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-              <XAxis
-                dataKey="month"
-                tick={{ fontSize: 12 }}
-                className="fill-muted-foreground"
-              />
-              <YAxis
-                tick={{ fontSize: 12 }}
-                tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}K` : v}
-                className="fill-muted-foreground"
-              />
-              <Tooltip
-                formatter={(v: number, name: string) => [v.toLocaleString(), name]}
-                contentStyle={{
-                  backgroundColor: "hsl(var(--popover))",
-                  border: "1px solid hsl(var(--border))",
-                  borderRadius: "8px",
-                  fontSize: "12px",
-                }}
-              />
-              <Legend wrapperStyle={{ fontSize: "12px" }} />
-              {LINE_KEYS.filter((k) =>
-                k === "you" || list.some((c) => c.name === k)
-              ).map((key, i) => (
-                <Line
-                  key={key}
-                  type="monotone"
-                  dataKey={key}
-                  name={key === "you" ? "You" : key}
-                  stroke={LINE_COLORS[i % LINE_COLORS.length]}
-                  strokeWidth={key === "you" ? 2.5 : 1.5}
-                  dot={false}
-                  strokeDasharray={key === "you" ? undefined : undefined}
-                />
-              ))}
-            </LineChart>
-          </ResponsiveContainer>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filtered.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
+                        {list.length === 0
+                          ? "No competitors tracked yet. Add one above."
+                          : "No matches found."}
+                      </td>
+                    </tr>
+                  ) : (
+                    filtered.map((c) => (
+                      <tr key={c.id} className="hover:bg-muted/30 transition-colors">
+                        <td className="py-3 pr-4">
+                          <div className="flex items-center gap-2">
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold">
+                              {c.channelName[0]?.toUpperCase()}
+                            </div>
+                            <div>
+                              <p className="font-medium text-sm">{c.channelName}</p>
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  "text-[10px] h-4 py-0 px-1 gap-0.5",
+                                  platformBadge[c.platform],
+                                )}
+                              >
+                                <PlatformIcon platform={c.platform} size={10} branded />
+                                {platformLabel[c.platform] ?? c.platform}
+                              </Badge>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-3 px-3 font-medium">{c.followers.toLocaleString()}</td>
+                        <td className="py-3 px-3">
+                          <ChangeCell value={c.growthRate} />
+                        </td>
+                        <td className="py-3 px-3 text-muted-foreground">
+                          {c.avgViewers != null && c.avgViewers > 0
+                            ? c.avgViewers.toLocaleString()
+                            : "—"}
+                        </td>
+                        <td className="py-3 pl-3">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                            disabled={removeCompetitor.isPending}
+                            onClick={() => handleRemove(c.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
 
       {/* ── Competitor cards ────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {list.map((c) => (
-          <Card key={c.id} className="hover:border-primary/40 transition-colors">
-            <CardContent className="pt-5 pb-4 space-y-3">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted font-bold text-sm">
-                    {c.name[0]}
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold">{c.name}</p>
-                    <p className="text-xs text-muted-foreground">{c.handle}</p>
+      {isLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <CardSkeleton key={i} />
+          ))}
+        </div>
+      ) : list.length === 0 ? (
+        <EmptyState preset="no-competitors" size="lg" />
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {list.map((c) => (
+            <Card key={c.id} className="hover:border-primary/40 transition-colors">
+              <CardContent className="pt-5 pb-4 space-y-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted font-bold text-sm">
+                      {c.channelName[0]?.toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold">{c.channelName}</p>
+                    </div>
                   </div>
                 </div>
-                <Badge variant="outline" className={cn("text-xs shrink-0", gradeColor(c.grade))}>
-                  {c.grade}
+
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "text-[10px] h-4 py-0 px-1.5 w-fit gap-0.5",
+                    platformBadge[c.platform],
+                  )}
+                >
+                  <PlatformIcon platform={c.platform} size={10} branded />
+                  {platformLabel[c.platform] ?? c.platform}
                 </Badge>
-              </div>
 
-              <Badge
-                variant="outline"
-                className={cn("text-[10px] h-4 py-0 px-1.5 w-fit gap-0.5", platformBadge[c.platform])}
-              >
-                <PlatformIcon platform={c.platform} size={10} branded />
-                {platformLabel[c.platform] ?? c.platform}
-              </Badge>
-
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
-                <div>
-                  <p className="text-xs text-muted-foreground">Followers</p>
-                  <p className="font-semibold">{c.followers.toLocaleString()}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">7d growth</p>
-                  <ChangeCell value={c.followersChange} />
-                </div>
-                {c.avgViewers > 0 && (
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
                   <div>
-                    <p className="text-xs text-muted-foreground">Avg viewers</p>
-                    <p className="font-semibold">{c.avgViewers.toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground">Followers</p>
+                    <p className="font-semibold">{c.followers.toLocaleString()}</p>
                   </div>
-                )}
-                <div>
-                  <p className="text-xs text-muted-foreground">Posts/wk</p>
-                  <p className="font-semibold">{c.uploadsPerWeek}</p>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Growth</p>
+                    <ChangeCell value={c.growthRate} />
+                  </div>
+                  {c.avgViewers != null && c.avgViewers > 0 && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Avg viewers</p>
+                      <p className="font-semibold">{c.avgViewers.toLocaleString()}</p>
+                    </div>
+                  )}
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

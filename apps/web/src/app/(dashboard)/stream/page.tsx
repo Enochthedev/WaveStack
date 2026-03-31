@@ -2,8 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { streamStatus, streamHealth, streamHistory } from "@/lib/mock-data";
-import { useLiveStream, useStartStream, useEndStream } from "@/lib/hooks/use-stream";
+import {
+  useLiveStream,
+  useStreamSessions,
+  useStartStream,
+  useEndStream,
+} from "@/lib/hooks/use-stream";
 import {
   isTauri,
   startMediamtx,
@@ -44,31 +48,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Wifi,
-  AlertTriangle,
-  Cpu,
-  Film,
-  Eye,
-  UserPlus,
-  Scissors,
-  Loader2,
-  Radio,
-  Plug,
-  PlugZap,
-} from "lucide-react";
+import { Wifi, Eye, UserPlus, Scissors, Loader2, Radio, Plug, PlugZap } from "lucide-react";
 import { PlatformIcon } from "@/components/icons/platform-icon";
 import { platformLabel } from "@/lib/colors";
 import { cn } from "@/lib/utils";
-
-function formatDateTime(dateStr: string) {
-  const d = new Date(dateStr);
-  return (
-    d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) +
-    " at " +
-    d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
-  );
-}
 
 function formatShortDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -104,11 +87,13 @@ export default function StreamPage() {
 
   // Real API
   const { data: liveStream } = useLiveStream();
+  const { data: sessionsData, isLoading: sessionsLoading } = useStreamSessions();
   const startStreamMut = useStartStream();
   const endStreamMut = useEndStream();
 
-  const isLive = liveStream !== undefined ? liveStream !== null : streamStatus.isLive;
+  const isLive = liveStream != null;
   const liveStreamId = liveStream?.id;
+  const streamSessions = sessionsData?.data ?? [];
 
   // Sync desktop relay status on mount
   useEffect(() => {
@@ -239,13 +224,7 @@ export default function StreamPage() {
                 <div>
                   <p className="font-semibold">Currently Offline</p>
                   <p className="mt-0.5 text-sm text-muted-foreground">
-                    Next:{" "}
-                    <span className="font-medium text-foreground">
-                      {streamStatus.nextStreamTitle}
-                    </span>
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {formatDateTime(streamStatus.nextStreamAt)}
+                    Ready to go live when you are.
                   </p>
                 </div>
               </>
@@ -378,17 +357,19 @@ export default function StreamPage() {
         </Card>
       )}
 
-      {/* Stream health */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard title="Bitrate" value={`${streamHealth.bitrate} kbps`} icon={Wifi} />
-        <StatCard
-          title="Dropped Frames"
-          value={`${streamHealth.droppedFrames}%`}
-          icon={AlertTriangle}
-        />
-        <StatCard title="CPU Usage" value={`${streamHealth.cpuUsage}%`} icon={Cpu} />
-        <StatCard title="FPS" value={`${streamHealth.encoderFps} fps`} icon={Film} />
-      </div>
+      {/* Stream health — only shown when live */}
+      {isLive && liveStream && (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <StatCard
+            title="Platform"
+            value={platformLabel[liveStream.platform] ?? liveStream.platform ?? "—"}
+            icon={Wifi}
+          />
+          <StatCard title="Viewers" value={liveStream.peakViewerCount ?? 0} icon={Eye} />
+          <StatCard title="New Followers" value={liveStream.newFollowers ?? 0} icon={UserPlus} />
+          <StatCard title="Clips Created" value={liveStream.clipsCreated ?? 0} icon={Scissors} />
+        </div>
+      )}
 
       {/* Stream history */}
       <Card>
@@ -396,49 +377,84 @@ export default function StreamPage() {
           <CardTitle>Past Streams</CardTitle>
         </CardHeader>
         <CardContent className="px-0">
-          <div className="divide-y divide-border">
-            {streamHistory.map((stream, i) => (
-              <div
-                key={stream.id}
-                className={`flex flex-wrap items-center gap-x-4 gap-y-2 px-6 py-3 text-sm ${i % 2 === 0 ? "bg-muted/20" : ""}`}
-              >
-                <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <span className="truncate font-medium">{stream.title}</span>
-                  <Badge variant="outline" className="shrink-0 text-xs gap-1">
-                    <PlatformIcon platform={stream.platform} size={11} branded />
-                    {platformLabel[stream.platform] ?? stream.platform}
-                  </Badge>
+          {sessionsLoading ? (
+            <div className="divide-y divide-border">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-4 px-6 py-3 animate-pulse">
+                  <div className="h-4 w-48 rounded bg-muted flex-1" />
+                  <div className="h-4 w-16 rounded bg-muted" />
+                  <div className="h-4 w-16 rounded bg-muted" />
+                  <div className="h-4 w-20 rounded bg-muted" />
                 </div>
-                <span className="w-14 shrink-0 text-muted-foreground">
-                  {formatShortDate(stream.startedAt)}
-                </span>
-                <span className="w-16 shrink-0 text-muted-foreground">
-                  {formatDuration(stream.duration)}
-                </span>
-                <span className="flex w-28 shrink-0 items-center gap-1 text-muted-foreground">
-                  <Eye className="h-3.5 w-3.5" />
-                  {stream.peakViewers} peak
-                </span>
-                <span className="w-20 shrink-0 text-muted-foreground">{stream.avgViewers} avg</span>
-                <span className="flex w-16 shrink-0 items-center gap-1 text-muted-foreground">
-                  <UserPlus className="h-3.5 w-3.5" />
-                  {stream.newFollowers}
-                </span>
-                <span className="flex w-14 shrink-0 items-center gap-1 text-muted-foreground">
-                  <Scissors className="h-3.5 w-3.5" />
-                  {stream.clipsCreated}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => toast.info(`Opening VOD: "${stream.title}"`)}
+              ))}
+            </div>
+          ) : streamSessions.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8 px-6">
+              No past streams yet. Go live to start building your history.
+            </p>
+          ) : (
+            <div className="divide-y divide-border">
+              {streamSessions.map((stream, i) => (
+                <div
+                  key={stream.id}
+                  className={`flex flex-wrap items-center gap-x-4 gap-y-2 px-6 py-3 text-sm ${i % 2 === 0 ? "bg-muted/20" : ""}`}
                 >
-                  View VOD
-                </Button>
-              </div>
-            ))}
-          </div>
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <span className="truncate font-medium">
+                      {stream.title ?? "Untitled stream"}
+                    </span>
+                    {stream.platform && (
+                      <Badge variant="outline" className="shrink-0 text-xs gap-1">
+                        <PlatformIcon platform={stream.platform} size={11} branded />
+                        {platformLabel[stream.platform] ?? stream.platform}
+                      </Badge>
+                    )}
+                  </div>
+                  {stream.startedAt && (
+                    <span className="w-14 shrink-0 text-muted-foreground">
+                      {formatShortDate(stream.startedAt)}
+                    </span>
+                  )}
+                  {stream.durationSeconds != null && (
+                    <span className="w-16 shrink-0 text-muted-foreground">
+                      {formatDuration(Math.round(stream.durationSeconds / 60))}
+                    </span>
+                  )}
+                  {stream.peakViewerCount != null && (
+                    <span className="flex w-28 shrink-0 items-center gap-1 text-muted-foreground">
+                      <Eye className="h-3.5 w-3.5" />
+                      {stream.peakViewerCount} peak
+                    </span>
+                  )}
+                  {stream.avgViewerCount != null && (
+                    <span className="w-20 shrink-0 text-muted-foreground">
+                      {stream.avgViewerCount} avg
+                    </span>
+                  )}
+                  {stream.newFollowers != null && (
+                    <span className="flex w-16 shrink-0 items-center gap-1 text-muted-foreground">
+                      <UserPlus className="h-3.5 w-3.5" />
+                      {stream.newFollowers}
+                    </span>
+                  )}
+                  {stream.clipsCreated != null && (
+                    <span className="flex w-14 shrink-0 items-center gap-1 text-muted-foreground">
+                      <Scissors className="h-3.5 w-3.5" />
+                      {stream.clipsCreated}
+                    </span>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => toast.info(`Opening VOD: "${stream.title}"`)}
+                  >
+                    View VOD
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 

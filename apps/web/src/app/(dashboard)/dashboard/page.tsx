@@ -7,8 +7,6 @@ import {
   Scissors,
   Send,
   Eye,
-  TrendingUp,
-  TrendingDown,
   Radio,
   Sparkles,
   ArrowRight,
@@ -19,22 +17,13 @@ import {
   Play,
   DollarSign,
   Bot,
-  Lightbulb,
-  XCircle,
   MonitorPlay,
 } from "lucide-react";
-import {
-  weeklyPerformance,
-  richApprovals,
-  smartRecommendations,
-  recentClipPerformance,
-  agentActivityFeed,
-  streamStatus,
-  queueItems,
-} from "@/lib/mock-data";
-import { useApprovals, useActOnApproval } from "@/lib/hooks/use-agents";
+import { useApprovals, useActOnApproval, useAgentTasks } from "@/lib/hooks/use-agents";
 import { useLiveStream } from "@/lib/hooks/use-stream";
 import { useQueueItems } from "@/lib/hooks/use-queue";
+import { useAnalyticsOverview, useClipPerformance } from "@/lib/hooks/use-analytics";
+import { useRevenueOverview } from "@/lib/hooks/use-revenue";
 import { StatCard } from "@/components/shared/stat-card";
 import { ApprovalCard, type ApprovalRequest } from "@/components/shared/approval-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -68,14 +57,6 @@ function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }
 
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
-}
-
 function fmtRelative(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);
@@ -91,15 +72,12 @@ function fmtViews(n: number) {
   return String(n);
 }
 
-const workerColors: Record<string, string> = {
-  content: "text-violet-400",
-  clip: "text-cyan-400",
-  publishing: "text-sky-400",
-  moderation: "text-red-400",
-  analytics: "text-amber-400",
-  growth: "text-emerald-400",
-  community: "text-pink-400",
-};
+function fmtCompact(n: number | undefined | null) {
+  if (n == null) return "—";
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+}
 
 // ─── Quick actions ────────────────────────────────────────────────────────────
 
@@ -110,22 +88,62 @@ const quickActions = [
   { label: "Ask Wave", icon: Sparkles, href: "/agents/chat", primary: false },
 ];
 
+// ─── Skeleton helpers ─────────────────────────────────────────────────────────
+
+function StatSkeleton() {
+  return (
+    <div className="rounded-xl border bg-card p-6 space-y-2 animate-pulse">
+      <div className="flex justify-between">
+        <div className="h-3 w-24 rounded bg-muted" />
+        <div className="h-4 w-4 rounded bg-muted" />
+      </div>
+      <div className="h-7 w-20 rounded bg-muted" />
+      <div className="h-3 w-32 rounded bg-muted" />
+    </div>
+  );
+}
+
+function ChartSkeleton() {
+  return (
+    <div className="h-[200px] w-full rounded bg-muted/30 animate-pulse flex items-center justify-center">
+      <span className="text-xs text-muted-foreground">Loading chart…</span>
+    </div>
+  );
+}
+
+function FeedItemSkeleton() {
+  return (
+    <div className="flex items-start gap-3 px-2 py-2.5">
+      <div className="h-3.5 w-3.5 rounded bg-muted animate-pulse shrink-0 mt-0.5" />
+      <div className="flex-1 space-y-1.5">
+        <div className="h-4 w-48 rounded bg-muted animate-pulse" />
+        <div className="h-3 w-32 rounded bg-muted animate-pulse" />
+      </div>
+      <div className="h-3 w-12 rounded bg-muted animate-pulse shrink-0" />
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
   const [chartMetric, setChartMetric] = useState<"views" | "engagement" | "followers">("views");
-  const [dismissedRecs, setDismissedRecs] = useState<string[]>([]);
 
-  // Real API data (falls back to mock when backend unavailable)
-  const { data: approvalsData } = useApprovals();
+  // Real API data
+  const { data: approvalsData, isLoading: approvalsLoading } = useApprovals();
   const actOnApproval = useActOnApproval();
   const { data: liveStream } = useLiveStream();
-  const { data: queueData } = useQueueItems({ limit: 20 });
+  const { data: queueData, isLoading: queueLoading } = useQueueItems({ limit: 20 });
+  const { data: analyticsData, isLoading: analyticsLoading } = useAnalyticsOverview("7d");
+  const { data: revenueData, isLoading: revenueLoading } = useRevenueOverview();
+  const { data: tasksData, isLoading: tasksLoading } = useAgentTasks({ limit: 10 });
+  const { data: clipPerfData, isLoading: clipPerfLoading } = useClipPerformance({ limit: 6 });
 
-  const approvals: ApprovalRequest[] =
-    (approvalsData?.data as ApprovalRequest[] | undefined) ?? (richApprovals as ApprovalRequest[]);
+  const approvals: ApprovalRequest[] = (approvalsData?.data as ApprovalRequest[] | undefined) ?? [];
 
-  const queueList = queueData?.data ?? queueItems;
+  const queueList = queueData?.data ?? [];
+  const tasks = tasksData?.data ?? [];
+  const recentClips = clipPerfData?.data ?? [];
 
   const todayPosts = queueList.filter((q) => {
     const d = new Date(q.scheduleAt);
@@ -133,15 +151,25 @@ export default function DashboardPage() {
     return d.getDate() === today.getDate() && d.getMonth() === today.getMonth();
   });
 
-  // Live stream from API or mock
-  const isLive = liveStream !== undefined ? liveStream !== null : streamStatus.isLive;
-  const currentViewers = liveStream?.viewerCount ?? streamStatus.currentViewers;
-  const nextStreamTitle = liveStream?.title ?? streamStatus.nextStreamTitle;
+  // Live stream
+  const isLive = liveStream != null;
+  const currentViewers = liveStream?.viewerCount ?? 0;
+  const streamTitle = liveStream?.title ?? "Stream";
 
-  const visibleRecs = smartRecommendations.filter((r) => !dismissedRecs.includes(r.id));
+  // Chart data from analytics overview
+  const chartData = analyticsData?.daily ?? [];
+  const platforms = analyticsData?.platforms ?? [];
+  const totalViews = platforms.reduce((sum, p) => sum + p.views, 0);
+  const totalEngagements = platforms.reduce(
+    (sum, p) => sum + Math.round(p.views * p.engagementRate),
+    0,
+  );
+  const totalNewFollowers = platforms.reduce((sum, p) => sum + p.newFollowers, 0);
 
   const metricLabel = { views: "Views", engagement: "Engagements", followers: "New Followers" };
   const metricColor = { views: "hsl(var(--primary))", engagement: "#10b981", followers: "#3b82f6" };
+
+  const isStatsLoading = analyticsLoading || revenueLoading || tasksLoading;
 
   function handleApprove(id: string) {
     actOnApproval.mutate({ id, action: "approve" });
@@ -166,7 +194,7 @@ export default function DashboardPage() {
               <span className="text-sm font-bold text-red-400 tracking-wide">LIVE</span>
             </div>
             <Separator orientation="vertical" className="h-4 bg-border/50" />
-            <span className="text-sm font-medium">{nextStreamTitle}</span>
+            <span className="text-sm font-medium">{streamTitle}</span>
             <Badge variant="outline" className="text-[10px] border-red-500/30 text-red-400">
               {currentViewers.toLocaleString()} viewers
             </Badge>
@@ -213,40 +241,46 @@ export default function DashboardPage() {
 
       {/* ── At-a-Glance Stat Cards ───────────────────────────────── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Today's Reach"
-          value="38.4K"
-          change="+14% vs yesterday"
-          trend="up"
-          icon={Eye}
-          description="Combined impressions across all platforms"
-        />
-        <StatCard
-          title="Content Output"
-          value="12 clips"
-          change="8 scheduled this week"
-          trend="neutral"
-          icon={Scissors}
-          description="Auto + manual clips created today"
-        />
-        <StatCard
-          title="Revenue Today"
-          value="$148"
-          change="+$31 vs yesterday"
-          trend="up"
-          icon={DollarSign}
-          description="Subs · bits · donations · ads"
-        />
-        <StatCard
-          title="Agent Activity"
-          value={`${agentActivityFeed.length} actions`}
-          change={approvals.length > 0 ? `${approvals.length} need approval` : "All caught up"}
-          trend={approvals.length > 0 ? "down" : "up"}
-          icon={Bot}
-          description={
-            approvals.length > 0 ? "Tap to review approvals" : "Agents are running smoothly"
-          }
-        />
+        {isStatsLoading ? (
+          Array.from({ length: 4 }).map((_, i) => <StatSkeleton key={i} />)
+        ) : (
+          <>
+            <StatCard
+              title="Today's Reach"
+              value={fmtCompact(totalViews)}
+              change={undefined}
+              trend="neutral"
+              icon={Eye}
+              description="Combined impressions across all platforms"
+            />
+            <StatCard
+              title="Content Output"
+              value="—"
+              change={queueList.length > 0 ? `${queueList.length} scheduled` : undefined}
+              trend="neutral"
+              icon={Scissors}
+              description="Auto + manual clips created today"
+            />
+            <StatCard
+              title="Revenue Today"
+              value={revenueData?.today != null ? `$${revenueData.today.toLocaleString()}` : "—"}
+              change="—"
+              trend="neutral"
+              icon={DollarSign}
+              description="Subs · bits · donations · ads"
+            />
+            <StatCard
+              title="Agent Activity"
+              value={`${tasks.length} actions`}
+              change={approvals.length > 0 ? `${approvals.length} need approval` : "All caught up"}
+              trend={approvals.length > 0 ? "down" : "up"}
+              icon={Bot}
+              description={
+                approvals.length > 0 ? "Tap to review approvals" : "Agents are running smoothly"
+              }
+            />
+          </>
+        )}
       </div>
 
       {/* ── Pending Approvals ─────────────────────────────────────── */}
@@ -255,9 +289,11 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2">
             <Zap className="h-4 w-4 text-amber-500" />
             <h2 className="text-sm font-semibold">
-              {approvals.length > 0
-                ? `${approvals.length} item${approvals.length > 1 ? "s" : ""} need your approval`
-                : "Approval Queue"}
+              {approvalsLoading
+                ? "Approval Queue"
+                : approvals.length > 0
+                  ? `${approvals.length} item${approvals.length > 1 ? "s" : ""} need your approval`
+                  : "Approval Queue"}
             </h2>
             {approvals.length > 0 && (
               <Badge
@@ -279,7 +315,20 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        {approvals.length === 0 ? (
+        {approvalsLoading ? (
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <div key={i} className="rounded-xl border p-4 space-y-3 animate-pulse">
+                <div className="h-4 w-40 rounded bg-muted" />
+                <div className="h-3 w-64 rounded bg-muted" />
+                <div className="flex gap-2">
+                  <div className="h-8 w-20 rounded bg-muted" />
+                  <div className="h-8 w-20 rounded bg-muted" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : approvals.length === 0 ? (
           <div className="rounded-xl border border-border/50 bg-muted/20 py-8 text-center">
             <CheckCircle2 className="h-6 w-6 text-emerald-500 mx-auto mb-2" />
             <p className="text-sm font-medium">Your agent has nothing waiting — all caught up</p>
@@ -325,65 +374,70 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart
-                data={weeklyPerformance}
-                margin={{ top: 4, right: 8, left: -24, bottom: 0 }}
-              >
-                <defs>
-                  <linearGradient id="metricGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={metricColor[chartMetric]} stopOpacity={0.2} />
-                    <stop offset="95%" stopColor={metricColor[chartMetric]} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
-                <XAxis
-                  dataKey="day"
-                  tick={{ fontSize: 11 }}
-                  className="fill-muted-foreground"
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  tick={{ fontSize: 11 }}
-                  className="fill-muted-foreground"
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--popover))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                    fontSize: "12px",
-                  }}
-                  formatter={(v: number) => [v.toLocaleString(), metricLabel[chartMetric]]}
-                />
-                <Area
-                  type="monotone"
-                  dataKey={chartMetric}
-                  stroke={metricColor[chartMetric]}
-                  strokeWidth={2}
-                  fill="url(#metricGrad)"
-                  dot={false}
-                  activeDot={{ r: 4, strokeWidth: 0 }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            {analyticsLoading ? (
+              <ChartSkeleton />
+            ) : chartData.length === 0 ? (
+              <div className="h-[200px] flex items-center justify-center text-sm text-muted-foreground">
+                No performance data yet. Connect a platform to start tracking.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart data={chartData} margin={{ top: 4, right: 8, left: -24, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="metricGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={metricColor[chartMetric]} stopOpacity={0.2} />
+                      <stop offset="95%" stopColor={metricColor[chartMetric]} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+                  <XAxis
+                    dataKey="day"
+                    tick={{ fontSize: 11 }}
+                    className="fill-muted-foreground"
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11 }}
+                    className="fill-muted-foreground"
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--popover))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "8px",
+                      fontSize: "12px",
+                    }}
+                    formatter={(v: number) => [v.toLocaleString(), metricLabel[chartMetric]]}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey={chartMetric}
+                    stroke={metricColor[chartMetric]}
+                    strokeWidth={2}
+                    fill="url(#metricGrad)"
+                    dot={false}
+                    activeDot={{ r: 4, strokeWidth: 0 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
 
             <div className="mt-4 grid grid-cols-3 divide-x divide-border">
               {[
                 {
                   label: "Total Views",
-                  value: weeklyPerformance.reduce((s, d) => s + d.views, 0).toLocaleString(),
+                  value: totalViews > 0 ? totalViews.toLocaleString() : "—",
                 },
                 {
                   label: "Engagements",
-                  value: weeklyPerformance.reduce((s, d) => s + d.engagement, 0).toLocaleString(),
+                  value: totalEngagements > 0 ? totalEngagements.toLocaleString() : "—",
                 },
                 {
                   label: "New Followers",
-                  value: "+" + weeklyPerformance.reduce((s, d) => s + d.followers, 0),
+                  value: totalNewFollowers > 0 ? `+${totalNewFollowers.toLocaleString()}` : "—",
                 },
               ].map(({ label, value }) => (
                 <div key={label} className="px-4 first:pl-0 last:pr-0 text-center">
@@ -437,14 +491,12 @@ export default function DashboardPage() {
                 {isLive ? (
                   <>
                     <p className="text-xs font-semibold text-red-500">LIVE NOW</p>
-                    <p className="text-xs text-muted-foreground truncate">{nextStreamTitle}</p>
+                    <p className="text-xs text-muted-foreground truncate">{streamTitle}</p>
                   </>
                 ) : (
                   <>
-                    <p className="text-xs font-medium">Next stream</p>
-                    <p className="text-xs text-muted-foreground">
-                      {fmtDate(streamStatus.nextStreamAt)} · {fmtTime(streamStatus.nextStreamAt)}
-                    </p>
+                    <p className="text-xs font-medium">No active stream</p>
+                    <p className="text-xs text-muted-foreground">Start streaming to go live</p>
                   </>
                 )}
               </div>
@@ -459,7 +511,16 @@ export default function DashboardPage() {
               </Link>
             </div>
 
-            {todayPosts.length === 0 ? (
+            {queueLoading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="rounded-lg border p-2.5 animate-pulse space-y-1.5">
+                    <div className="h-3 w-16 rounded bg-muted" />
+                    <div className="h-3 w-32 rounded bg-muted" />
+                  </div>
+                ))}
+              </div>
+            ) : todayPosts.length === 0 ? (
               <div className="text-center py-6">
                 <p className="text-sm text-muted-foreground">Nothing scheduled for today.</p>
                 <Link href="/publish/compose">
@@ -511,50 +572,6 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* ── Smart Recommendations ─────────────────────────────────── */}
-      {visibleRecs.length > 0 && (
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <Lightbulb className="h-4 w-4 text-amber-400" />
-            <h2 className="text-sm font-semibold">Smart Recommendations</h2>
-            <span className="text-xs text-muted-foreground">· refreshed this morning</span>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {visibleRecs.map((rec) => (
-              <div
-                key={rec.id}
-                className="rounded-xl border border-border bg-card p-4 space-y-2 hover:border-border/80 transition-colors"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm font-medium leading-snug">{rec.title}</p>
-                  <button
-                    onClick={() => setDismissedRecs((p) => [...p, rec.id])}
-                    className="shrink-0 text-muted-foreground/40 hover:text-muted-foreground transition-colors mt-0.5"
-                  >
-                    <XCircle className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">{rec.detail}</p>
-                <div className="flex items-center gap-2 pt-1">
-                  <Button size="sm" variant="default" className="h-7 text-xs gap-1.5">
-                    <Sparkles className="h-3 w-3" />
-                    {rec.cta}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 text-xs text-muted-foreground"
-                    onClick={() => setDismissedRecs((p) => [...p, rec.id])}
-                  >
-                    Dismiss
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* ── Bottom grid: agent feed + clip performance ──────────── */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Agent Activity Feed */}
@@ -574,44 +591,57 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="space-y-1">
-              {agentActivityFeed.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-start gap-3 rounded-lg px-2 py-2.5 hover:bg-muted/40 transition-colors"
-                >
-                  <Activity
-                    className={cn(
-                      "h-3.5 w-3.5 mt-0.5 shrink-0",
-                      workerColors[item.workerType] ?? "text-primary",
-                    )}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium leading-tight">{item.action}</p>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          "text-[9px] h-4 py-0 px-1 gap-1",
-                          platformBadge[item.platform] ?? "bg-muted/50",
-                        )}
-                      >
-                        {item.platform !== "all" && (
-                          <PlatformIcon platform={item.platform} size={9} branded />
-                        )}
-                        {platformLabel[item.platform] ?? item.platform}
-                      </Badge>
-                      <span className="text-[10px] text-muted-foreground truncate">
-                        {item.outcome}
-                      </span>
+            {tasksLoading ? (
+              <div className="space-y-1">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <FeedItemSkeleton key={i} />
+                ))}
+              </div>
+            ) : tasks.length === 0 ? (
+              <div className="text-center py-8">
+                <Activity className="h-6 w-6 text-muted-foreground/40 mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">No recent agent activity</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Enable agents to start automating tasks
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {tasks.slice(0, 6).map((task) => (
+                  <div
+                    key={task.id}
+                    className="flex items-start gap-3 rounded-lg px-2 py-2.5 hover:bg-muted/40 transition-colors"
+                  >
+                    <Activity
+                      className={cn(
+                        "h-3.5 w-3.5 mt-0.5 shrink-0",
+                        task.status === "completed"
+                          ? "text-emerald-400"
+                          : task.status === "running"
+                            ? "text-cyan-400"
+                            : task.status === "awaiting_approval"
+                              ? "text-amber-400"
+                              : "text-muted-foreground",
+                      )}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium leading-tight">{task.title}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <Badge variant="outline" className="text-[9px] h-4 py-0 px-1 capitalize">
+                          {task.agentType}
+                        </Badge>
+                        <span className="text-[10px] text-muted-foreground capitalize">
+                          {task.status.replace("_", " ")}
+                        </span>
+                      </div>
                     </div>
+                    <span className="text-[10px] text-muted-foreground shrink-0">
+                      {fmtRelative(task.createdAt)}
+                    </span>
                   </div>
-                  <span className="text-[10px] text-muted-foreground shrink-0">
-                    {fmtRelative(item.at)}
-                  </span>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -632,61 +662,69 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              {recentClipPerformance.map((clip) => (
-                <div
-                  key={clip.id}
-                  className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-muted/40 transition-colors group"
-                >
-                  {/* Thumbnail placeholder */}
-                  <div className="h-9 w-14 shrink-0 rounded bg-muted/60 flex items-center justify-center overflow-hidden">
-                    <MonitorPlay className="h-4 w-4 text-muted-foreground/50" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium truncate">{clip.title}</p>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      {clip.platforms.slice(0, 2).map((p) => (
-                        <PlatformIcon key={p} platform={p} size={10} branded />
-                      ))}
-                      {clip.platforms.length > 2 && (
-                        <span className="text-[9px] text-muted-foreground">
-                          +{clip.platforms.length - 2}
-                        </span>
-                      )}
-                      <span className="text-[10px] text-muted-foreground">
-                        {fmtRelative(clip.publishedAt)}
-                      </span>
+            {clipPerfLoading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 px-2 py-2 animate-pulse">
+                    <div className="h-9 w-14 shrink-0 rounded bg-muted" />
+                    <div className="flex-1 space-y-1.5">
+                      <div className="h-3 w-32 rounded bg-muted" />
+                      <div className="h-2.5 w-20 rounded bg-muted" />
                     </div>
+                    <div className="h-4 w-12 rounded bg-muted shrink-0" />
                   </div>
-                  <div className="shrink-0 text-right">
-                    <p className="text-sm font-bold">
-                      <Sensitive>{fmtViews(clip.views)}</Sensitive>
-                    </p>
-                    <div
-                      className={cn(
-                        "flex items-center justify-end gap-0.5 text-[10px]",
-                        clip.trend === "up"
-                          ? "text-emerald-500"
-                          : clip.trend === "down"
-                            ? "text-red-400"
-                            : "text-muted-foreground",
-                      )}
-                    >
-                      {clip.trend === "up" && <TrendingUp className="h-2.5 w-2.5" />}
-                      {clip.trend === "down" && <TrendingDown className="h-2.5 w-2.5" />}
-                      {clip.trendPct}
-                    </div>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-6 text-[10px] px-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-primary"
+                ))}
+              </div>
+            ) : recentClips.length === 0 ? (
+              <div className="text-center py-8">
+                <MonitorPlay className="h-6 w-6 text-muted-foreground/40 mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">No clips yet</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Create clips from your streams to track performance
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {recentClips.map((clip) => (
+                  <div
+                    key={clip.id}
+                    className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-muted/40 transition-colors group"
                   >
-                    Boost
-                  </Button>
-                </div>
-              ))}
-            </div>
+                    <div className="h-9 w-14 shrink-0 rounded bg-muted/60 flex items-center justify-center overflow-hidden">
+                      <MonitorPlay className="h-4 w-4 text-muted-foreground/50" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium truncate">{clip.title}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {clip.platforms?.slice(0, 2).map((p: string) => (
+                          <PlatformIcon key={p} platform={p} size={10} branded />
+                        ))}
+                        {(clip.platforms?.length ?? 0) > 2 && (
+                          <span className="text-[9px] text-muted-foreground">
+                            +{(clip.platforms?.length ?? 0) - 2}
+                          </span>
+                        )}
+                        {clip.publishedAt && (
+                          <span className="text-[10px] text-muted-foreground">
+                            {fmtRelative(clip.publishedAt)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-sm font-bold">
+                        <Sensitive>{fmtViews(clip.views ?? 0)}</Sensitive>
+                      </p>
+                      {clip.hypeScore != null && (
+                        <div className="flex items-center justify-end gap-0.5 text-[10px] text-muted-foreground">
+                          {clip.hypeScore}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -706,33 +744,53 @@ export default function DashboardPage() {
               </Button>
             </Link>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {[
-              { platform: "youtube", followers: 45200, change: "+1.1K this week" },
-              { platform: "tiktok", followers: 4200, change: "+120 this week" },
-              { platform: "instagram", followers: 4200, change: "+85 this week" },
-              { platform: "twitch", followers: 312, change: "+12 this week" },
-            ].map((p) => (
-              <div key={p.platform} className="flex items-center gap-2.5">
-                <div
-                  className={cn(
-                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border",
-                    platformBadge[p.platform],
-                  )}
-                >
-                  <PlatformIcon platform={p.platform} size={16} branded />
+          {analyticsLoading ? (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-2.5 animate-pulse">
+                  <div className="h-8 w-8 rounded-lg bg-muted shrink-0" />
+                  <div className="space-y-1.5">
+                    <div className="h-4 w-12 rounded bg-muted" />
+                    <div className="h-2.5 w-20 rounded bg-muted" />
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm font-semibold">
-                    <Sensitive>{p.followers.toLocaleString()}</Sensitive>
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">
-                    <Sensitive>{p.change}</Sensitive>
-                  </p>
+              ))}
+            </div>
+          ) : platforms.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {platforms.slice(0, 4).map((p) => (
+                <div key={p.platform} className="flex items-center gap-2.5">
+                  <div
+                    className={cn(
+                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border",
+                      platformBadge[p.platform],
+                    )}
+                  >
+                    <PlatformIcon platform={p.platform} size={16} branded />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold">
+                      <Sensitive>{fmtCompact(p.newFollowers)}</Sensitive>
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      <Sensitive>{fmtCompact(p.views)} views</Sensitive>
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-4">
+              <p className="text-sm text-muted-foreground">
+                Connect your platforms to see reach metrics
+              </p>
+              <Link href="/settings/integrations">
+                <Button variant="outline" size="sm" className="mt-2 text-xs">
+                  Connect Platforms
+                </Button>
+              </Link>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

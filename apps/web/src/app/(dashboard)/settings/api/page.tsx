@@ -7,18 +7,31 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Copy, CheckCircle2, Plus, Trash2, Loader2 } from "lucide-react";
 import { Sensitive } from "@/lib/streamer-mode";
-import { apiKeys } from "@/lib/mock-data";
 
 function relDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", {
-    month: "short", day: "numeric", year: "numeric",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
   });
 }
 function relTime(iso: string) {
@@ -31,11 +44,20 @@ function relTime(iso: string) {
 }
 
 export default function ApiPage() {
-  const [keys,         setKeys]         = useState(apiKeys);
-  const [copied,       setCopied]       = useState<string | null>(null);
-  const [genOpen,      setGenOpen]      = useState(false);
-  const [keyName,      setKeyName]      = useState("");
-  const [generating,   setGenerating]   = useState(false);
+  const [keys, setKeys] = useState<
+    {
+      id: string;
+      name: string;
+      maskedKey: string;
+      createdAt: string;
+      lastUsedAt: string;
+      scopes: string[];
+    }[]
+  >([]);
+  const [copied, setCopied] = useState<string | null>(null);
+  const [genOpen, setGenOpen] = useState(false);
+  const [keyName, setKeyName] = useState("");
+  const [generating, setGenerating] = useState(false);
   const [revokeTarget, setRevokeTarget] = useState<string | null>(null);
 
   function copy(id: string, val: string) {
@@ -50,12 +72,12 @@ export default function ApiPage() {
     setGenerating(true);
     await new Promise((r) => setTimeout(r, 900));
     const newKey = {
-      id:         `key-${Date.now()}`,
-      name:       keyName,
-      maskedKey:  `ws_live_${"•".repeat(24)}${Math.random().toString(36).slice(-6)}`,
-      createdAt:  new Date().toISOString(),
+      id: `key-${Date.now()}`,
+      name: keyName,
+      maskedKey: `ws_live_${"•".repeat(24)}${Math.random().toString(36).slice(-6)}`,
+      createdAt: new Date().toISOString(),
       lastUsedAt: new Date().toISOString(),
-      scopes:     ["read", "write"],
+      scopes: ["read", "write"],
     };
     setKeys((prev) => [newKey, ...prev]);
     setGenerating(false);
@@ -80,7 +102,8 @@ export default function ApiPage() {
               <CardDescription>Authenticate requests to the WaveStack API.</CardDescription>
             </div>
             <Button size="sm" onClick={() => setGenOpen(true)}>
-              <Plus className="h-3.5 w-3.5 mr-1.5" />Generate key
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
+              Generate key
             </Button>
           </div>
         </CardHeader>
@@ -99,15 +122,20 @@ export default function ApiPage() {
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <Button
-                    variant="ghost" size="icon" className="h-7 w-7"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
                     onClick={() => copy(k.id, k.maskedKey)}
                   >
-                    {copied === k.id
-                      ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-                      : <Copy className="h-3.5 w-3.5" />}
+                    {copied === k.id ? (
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5" />
+                    )}
                   </Button>
                   <Button
-                    variant="ghost" size="icon"
+                    variant="ghost"
+                    size="icon"
                     className="h-7 w-7 text-muted-foreground hover:text-destructive"
                     onClick={() => setRevokeTarget(k.id)}
                   >
@@ -121,7 +149,9 @@ export default function ApiPage() {
                 </code>
                 <div className="flex gap-1 shrink-0">
                   {k.scopes.map((s) => (
-                    <Badge key={s} variant="outline" className="text-[10px] h-5 py-0 px-1.5">{s}</Badge>
+                    <Badge key={s} variant="outline" className="text-[10px] h-5 py-0 px-1.5">
+                      {s}
+                    </Badge>
                   ))}
                 </div>
               </div>
@@ -131,10 +161,13 @@ export default function ApiPage() {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle>Documentation</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>Documentation</CardTitle>
+        </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Use the WaveStack API to integrate publishing, clips, analytics, and agent tasks into your own tools.
+            Use the WaveStack API to integrate publishing, clips, analytics, and agent tasks into
+            your own tools.
           </p>
           <Button variant="outline" size="sm" onClick={() => toast.info("API docs coming soon")}>
             View API docs
@@ -144,7 +177,9 @@ export default function ApiPage() {
 
       <Dialog open={genOpen} onOpenChange={setGenOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Generate API Key</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Generate API Key</DialogTitle>
+          </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label>Key Name</Label>
@@ -156,7 +191,9 @@ export default function ApiPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setGenOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setGenOpen(false)}>
+              Cancel
+            </Button>
             <Button onClick={generate} disabled={generating || !keyName.trim()}>
               {generating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Generate
             </Button>
@@ -164,7 +201,10 @@ export default function ApiPage() {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={!!revokeTarget} onOpenChange={(open: boolean) => !open && setRevokeTarget(null)}>
+      <AlertDialog
+        open={!!revokeTarget}
+        onOpenChange={(open: boolean) => !open && setRevokeTarget(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Revoke API key?</AlertDialogTitle>

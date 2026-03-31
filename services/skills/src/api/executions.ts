@@ -145,8 +145,14 @@ export async function executionsRoutes(fastify: FastifyInstance) {
 
   fastify.get("/", async (request, reply) => {
     const orgId = getOrgId(request);
+    // Internal callers must also supply an orgId query param to scope results.
+    // Never return cross-tenant data.
+    const queryOrgId = orgId ?? (request.query as any).orgId;
+    if (!queryOrgId) {
+      return sendError(reply, "BAD_REQUEST", "orgId is required");
+    }
     const executions = await db.skillExecution.findMany({
-      where: orgId ? { orgId } : {},
+      where: { orgId: queryOrgId },
       orderBy: { createdAt: "desc" },
       take: 100,
     });
@@ -157,13 +163,26 @@ export async function executionsRoutes(fastify: FastifyInstance) {
     const { id } = z.object({ id: z.string() }).parse(request.params);
     const execution = await db.skillExecution.findUnique({ where: { id } });
     if (!execution) return reply.status(404).send({ error: "Execution not found" });
+
+    // Ownership check: ensure the execution belongs to the requesting org
+    const orgId = getOrgId(request) ?? (request.query as any).orgId;
+    if (orgId && execution.orgId !== orgId) {
+      return reply.status(404).send({ error: "Execution not found" });
+    }
+
     return reply.send(execution);
   });
 
   fastify.post("/:id/cancel", async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
+    const orgId = getOrgId(request) ?? (request.query as any).orgId;
     const execution = await db.skillExecution.findUnique({ where: { id } });
     if (!execution) return reply.status(404).send({ error: "Execution not found" });
+
+    // Ownership check
+    if (orgId && execution.orgId !== orgId) {
+      return reply.status(404).send({ error: "Execution not found" });
+    }
 
     if (execution.status !== "running" && execution.status !== "pending") {
       return reply.status(400).send({ error: `Cannot cancel execution in '${execution.status}' state` });
