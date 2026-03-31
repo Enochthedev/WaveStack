@@ -14,16 +14,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { notifications } from "@/lib/mock-data";
+import { useNotifications, useUnreadCount } from "@/lib/hooks/use-notifications";
 import { useRole, ROLES, ROLE_META } from "@/lib/role";
 import { cn } from "@/lib/utils";
-
-const unread = notifications.filter((n) => !n.isRead);
-const preview = unread.slice(0, 4);
 
 export function Topbar() {
   const { role, setRole } = useRole();
   const roleMeta = ROLE_META[role];
+  const { data: unreadCount } = useUnreadCount();
+  const { data: notifData } = useNotifications({ limit: 4, unreadOnly: true });
+  const preview = notifData?.data ?? [];
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-border bg-background/95 px-6 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -50,9 +50,9 @@ export function Topbar() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="h-4 w-4" />
-              {unread.length > 0 && (
+              {(unreadCount ?? 0) > 0 && (
                 <Badge className="absolute -right-1 -top-1 h-4 w-4 rounded-full p-0 text-[10px] flex items-center justify-center">
-                  {unread.length}
+                  {unreadCount}
                 </Badge>
               )}
             </Button>

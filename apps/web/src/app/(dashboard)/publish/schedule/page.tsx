@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { toast } from "sonner";
-import { scheduledPosts as initialPosts } from "@/lib/mock-data";
+// TODO: wire to real schedule API when available
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,17 +30,34 @@ import { Plus, Loader2, Trash2 } from "lucide-react";
 import { platformBadge, platformDot, platformLabel } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 
-type Post = (typeof initialPosts)[number];
+type Post = {
+  id: string;
+  title: string;
+  platforms: string[];
+  scheduleAt: string;
+  status: string;
+};
 
-const WEEK = [
-  { label: "Sun", date: "Feb 22", day: 22 },
-  { label: "Mon", date: "Feb 23", day: 23 },
-  { label: "Tue", date: "Feb 24", day: 24 },
-  { label: "Wed", date: "Feb 25", day: 25 },
-  { label: "Thu", date: "Feb 26", day: 26 },
-  { label: "Fri", date: "Feb 27", day: 27 },
-  { label: "Sat", date: "Feb 28", day: 28 },
-];
+const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+
+/** Build the 7-day week starting from the most recent Sunday. */
+function buildWeek() {
+  const today = new Date();
+  const sunday = new Date(today);
+  sunday.setDate(today.getDate() - today.getDay());
+  sunday.setHours(0, 0, 0, 0);
+
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(sunday);
+    d.setDate(sunday.getDate() + i);
+    return {
+      label: DAY_LABELS[d.getDay()],
+      date: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      isoDate: d.toISOString().slice(0, 10), // "YYYY-MM-DD"
+      isToday: d.toDateString() === today.toDateString(),
+    };
+  });
+}
 
 const PLATFORMS_AVAILABLE = [
   { id: "youtube", label: "YouTube" },
@@ -69,9 +86,10 @@ function fmtFull(dateStr: string) {
 }
 
 export default function SchedulePage() {
-  const [posts, setPosts] = useState<Post[]>(initialPosts);
+  const week = useMemo(() => buildWeek(), []);
+
+  const [posts, setPosts] = useState<Post[]>([]);
   const [newPostOpen, setNewPostOpen] = useState(false);
-  const [_prefillDay, setPrefillDay] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Post | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -82,10 +100,8 @@ export default function SchedulePage() {
     platforms: [] as string[],
   });
 
-  function openNew(day?: number) {
-    const dayStr = day ? `2026-02-${String(day).padStart(2, "0")}` : "";
-    setPrefillDay(day ?? null);
-    setForm({ title: "", date: dayStr, time: "12:00", platforms: [] });
+  function openNew(isoDate?: string) {
+    setForm({ title: "", date: isoDate ?? "", time: "12:00", platforms: [] });
     setNewPostOpen(true);
   }
 
@@ -124,11 +140,11 @@ export default function SchedulePage() {
     setDeleteTarget(null);
   }
 
-  // bucket posts by day-of-month
-  const byDay: Record<number, Post[]> = {};
+  // bucket posts by ISO date string (YYYY-MM-DD) for accurate week matching
+  const byIsoDate: Record<string, Post[]> = {};
   for (const post of posts) {
-    const day = new Date(post.scheduleAt).getDate();
-    (byDay[day] ??= []).push(post);
+    const key = new Date(post.scheduleAt).toISOString().slice(0, 10);
+    (byIsoDate[key] ??= []).push(post);
   }
 
   const sorted = [...posts].sort(
@@ -152,23 +168,34 @@ export default function SchedulePage() {
           <div className="min-w-[700px]">
             {/* Day headers */}
             <div className="grid grid-cols-7 border-b border-border">
-              {WEEK.map((day) => (
-                <div key={day.day} className="border-r border-border px-3 py-2 last:border-r-0">
+              {week.map((day) => (
+                <div
+                  key={day.isoDate}
+                  className={cn(
+                    "border-r border-border px-3 py-2 last:border-r-0",
+                    day.isToday && "bg-primary/5",
+                  )}
+                >
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     {day.label}
                   </p>
-                  <p className="text-sm font-medium">{day.date}</p>
+                  <p className={cn("text-sm font-medium", day.isToday && "text-primary")}>
+                    {day.date}
+                  </p>
                 </div>
               ))}
             </div>
             {/* Day columns */}
             <div className="grid grid-cols-7">
-              {WEEK.map((day) => {
-                const dayPosts = byDay[day.day] ?? [];
+              {week.map((day) => {
+                const dayPosts = byIsoDate[day.isoDate] ?? [];
                 return (
                   <div
-                    key={day.day}
-                    className="min-h-[180px] border-r border-border p-2 last:border-r-0 space-y-1.5"
+                    key={day.isoDate}
+                    className={cn(
+                      "min-h-45 border-r border-border p-2 last:border-r-0 space-y-1.5",
+                      day.isToday && "bg-primary/5",
+                    )}
                   >
                     {dayPosts.map((post) => (
                       <div
@@ -193,7 +220,7 @@ export default function SchedulePage() {
                     ))}
                     {/* Add button on empty or at end */}
                     <button
-                      onClick={() => openNew(day.day)}
+                      onClick={() => openNew(day.isoDate)}
                       className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground/30 hover:bg-muted hover:text-muted-foreground transition-colors"
                     >
                       <Plus className="h-3.5 w-3.5" />

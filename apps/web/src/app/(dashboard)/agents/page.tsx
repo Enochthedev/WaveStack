@@ -1,14 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { toast } from "sonner";
-import { agents as mockAgents, agentTasks as mockTasks } from "@/lib/mock-data";
 import {
   useAgentConfig,
   useUpdateAgentConfig,
   useApprovals,
   useActOnApproval,
 } from "@/lib/hooks/use-agents";
+import { EmptyState } from "@/components/shared/empty-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
@@ -30,38 +29,57 @@ import type { AgentConfig, ApprovalRequest } from "@/lib/api";
 
 const autonomyLevels = ["manual", "copilot", "autopilot"] as const;
 
-// Fallback shapes from mock data
-const fallbackAgents: AgentConfig[] = mockAgents.map((a) => ({
-  agentType: a.agentType,
-  name: a.name,
-  autonomyLevel: a.autonomyLevel as AgentConfig["autonomyLevel"],
-  isEnabled: a.isEnabled,
-  tasksCompleted: a.tasksCompleted,
-  tasksRunning: a.tasksRunning,
-  description: a.description,
-}));
+// ── Skeletons ──────────────────────────────────────────────────────────────
 
-const fallbackApprovals: ApprovalRequest[] = mockTasks
-  .filter((t) => t.status === "awaiting_approval")
-  .map((t) => ({
-    id: t.id,
-    agentType: t.agentType,
-    taskId: t.id,
-    title: t.title,
-    urgency: "medium" as const,
-    createdAt: t.createdAt,
-  }));
+function AgentCardSkeleton() {
+  return (
+    <Card className="animate-pulse">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <div className="h-5 w-32 rounded bg-muted" />
+        <div className="h-5 w-16 rounded bg-muted" />
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="h-4 w-full rounded bg-muted" />
+        <div className="flex items-center gap-4">
+          <div className="h-4 w-20 rounded bg-muted" />
+          <div className="h-4 w-20 rounded bg-muted" />
+        </div>
+        <div className="h-6 w-12 rounded bg-muted" />
+        <div className="flex gap-1">
+          <div className="h-7 w-16 rounded bg-muted" />
+          <div className="h-7 w-16 rounded bg-muted" />
+          <div className="h-7 w-16 rounded bg-muted" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ApprovalSkeleton() {
+  return (
+    <div className="flex items-center justify-between border-b pb-3 last:border-0 last:pb-0 animate-pulse">
+      <div className="space-y-1">
+        <div className="h-4 w-48 rounded bg-muted" />
+        <div className="h-5 w-20 rounded bg-muted" />
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="h-8 w-20 rounded bg-muted" />
+        <div className="h-8 w-16 rounded bg-muted" />
+      </div>
+    </div>
+  );
+}
+
+// ── Page ───────────────────────────────────────────────────────────────────
 
 export default function AgentsPage() {
-  // Real API data
-  const { data: configData, isError: configError } = useAgentConfig();
-  const { data: approvalsData, isError: approvalsError } = useApprovals();
+  const { data: configData, isLoading: configLoading, isError: configError } = useAgentConfig();
+  const { data: approvalsData, isLoading: approvalsLoading } = useApprovals();
   const updateConfig = useUpdateAgentConfig();
   const actOnApproval = useActOnApproval();
 
-  // Use real data when available, fall back to mock
-  const agentConfigs: AgentConfig[] = configData ?? fallbackAgents;
-  const approvals: ApprovalRequest[] = approvalsData?.data ?? fallbackApprovals;
+  const agentConfigs: AgentConfig[] = configData ?? [];
+  const approvals: ApprovalRequest[] = approvalsData?.data ?? [];
 
   // Autopilot confirmation dialog
   const [pendingAutonomy, setPendingAutonomy] = useState<{
@@ -89,10 +107,6 @@ export default function AgentsPage() {
       agentType: agent.agentType,
       patch: { isEnabled: !agent.isEnabled },
     });
-    // Optimistic feedback when backend is not available
-    if (configError) {
-      toast.success(`${agent.name} ${agent.isEnabled ? "disabled" : "enabled"}`);
-    }
   }
 
   function handleApprove(approval: ApprovalRequest) {
@@ -103,82 +117,106 @@ export default function AgentsPage() {
     actOnApproval.mutate({ id: approval.id, action: "reject" });
   }
 
-  const pendingApprovals = approvals;
-
   return (
     <div className="space-y-8">
       <PageHeader title="AI Agents" description="Manage your autonomous AI agents" />
 
-      {(configError || approvalsError) && (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-xs text-amber-600 dark:text-amber-400">
-          Backend offline — showing cached data. Changes may not persist.
+      {configError && (
+        <EmptyState preset="offline" subtitle="Could not load agent configuration." />
+      )}
+
+      {!configError && (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {configLoading ? (
+            Array.from({ length: 4 }).map((_, i) => <AgentCardSkeleton key={i} />)
+          ) : agentConfigs.length === 0 ? (
+            <div className="col-span-full">
+              <EmptyState
+                preset="generic"
+                title="No agents configured"
+                subtitle="Set up your AI agents to get started with automation."
+                size="lg"
+              />
+            </div>
+          ) : (
+            agentConfigs.map((agent) => (
+              <Card key={agent.agentType}>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-base font-semibold">{agent.name}</CardTitle>
+                  <StatusBadge status={agent.autonomyLevel} />
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-sm text-muted-foreground">{agent.description}</p>
+
+                  <div className="flex items-center gap-4 text-sm">
+                    <span className="text-muted-foreground">
+                      Completed:{" "}
+                      <span className="font-medium text-foreground">{agent.tasksCompleted}</span>
+                    </span>
+                    <span className="text-muted-foreground">
+                      Running:{" "}
+                      <span className="font-medium text-foreground">{agent.tasksRunning}</span>
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={agent.isEnabled}
+                      onCheckedChange={() => toggleEnabled(agent)}
+                      disabled={updateConfig.isPending}
+                    />
+                    <span className="text-sm text-muted-foreground">Enabled</span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium text-muted-foreground">Autonomy Level</p>
+                    <div className="flex gap-1">
+                      {autonomyLevels.map((level) => (
+                        <Button
+                          key={level}
+                          size="sm"
+                          variant={agent.autonomyLevel === level ? "default" : "outline"}
+                          className="h-7 text-xs capitalize"
+                          disabled={updateConfig.isPending}
+                          onClick={() => requestAutonomyChange(agent, level)}
+                        >
+                          {level}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {agentConfigs.map((agent) => (
-          <Card key={agent.agentType}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-base font-semibold">{agent.name}</CardTitle>
-              <StatusBadge status={agent.autonomyLevel} />
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">{agent.description}</p>
-
-              <div className="flex items-center gap-4 text-sm">
-                <span className="text-muted-foreground">
-                  Completed:{" "}
-                  <span className="font-medium text-foreground">{agent.tasksCompleted}</span>
-                </span>
-                <span className="text-muted-foreground">
-                  Running: <span className="font-medium text-foreground">{agent.tasksRunning}</span>
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={agent.isEnabled}
-                  onCheckedChange={() => toggleEnabled(agent)}
-                  disabled={updateConfig.isPending}
-                />
-                <span className="text-sm text-muted-foreground">Enabled</span>
-              </div>
-
-              <div className="space-y-1.5">
-                <p className="text-xs font-medium text-muted-foreground">Autonomy Level</p>
-                <div className="flex gap-1">
-                  {autonomyLevels.map((level) => (
-                    <Button
-                      key={level}
-                      size="sm"
-                      variant={agent.autonomyLevel === level ? "default" : "outline"}
-                      className="h-7 text-xs capitalize"
-                      disabled={updateConfig.isPending}
-                      onClick={() => requestAutonomyChange(agent, level)}
-                    >
-                      {level}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {pendingApprovals.length > 0 && (
+      {/* Pending Approvals */}
+      {approvalsLoading ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Pending Approvals</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <ApprovalSkeleton key={i} />
+            ))}
+          </CardContent>
+        </Card>
+      ) : approvals.length > 0 ? (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               Pending Approvals
               <Badge className="h-5 w-5 rounded-full p-0 text-[10px] flex items-center justify-center">
-                {pendingApprovals.length}
+                {approvals.length}
               </Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {pendingApprovals.map((approval) => (
+              {approvals.map((approval) => (
                 <div
                   key={approval.id}
                   className="flex items-center justify-between border-b pb-3 last:border-0 last:pb-0"
@@ -223,9 +261,7 @@ export default function AgentsPage() {
             </div>
           </CardContent>
         </Card>
-      )}
-
-      {pendingApprovals.length === 0 && (
+      ) : (
         <Card>
           <CardContent className="flex items-center justify-center gap-2 h-20 text-sm text-muted-foreground">
             <CheckCircle2 className="h-4 w-4 text-green-500" />

@@ -1,35 +1,23 @@
 "use client";
 
 import { toast } from "sonner";
-import { communityStats, topSupporters, followerGrowth } from "@/lib/mock-data";
+import { useCommunityMembers } from "@/lib/hooks/use-community";
+import { useAnalyticsOverview } from "@/lib/hooks/use-analytics";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
+import { EmptyState } from "@/components/shared/empty-state";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
-} from "@/components/ui/chart";
-import type { ChartConfig } from "@/components/ui/chart";
-import { LineChart, Line, CartesianGrid, XAxis, YAxis } from "recharts";
 import { Users, MessageSquare, Heart, Trophy, Clock, Gift, Download } from "lucide-react";
 import { PlatformIcon } from "@/components/icons/platform-icon";
 import { platformLabel } from "@/lib/colors";
 
-const chartConfig: ChartConfig = {
-  youtube: { label: "YouTube", color: "hsl(var(--chart-1))" },
-  twitch:  { label: "Twitch",  color: "hsl(var(--chart-2))" },
-  discord: { label: "Discord", color: "hsl(var(--chart-3))" },
-  tiktok:  { label: "TikTok",  color: "hsl(var(--chart-4))" },
-};
+// ── Tier styles ───────────────────────────────────────────────────────────────
 
 const tierStyles: Record<string, string> = {
-  gold:   "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+  gold: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
   silver: "bg-gray-500/20 text-gray-400 border-gray-500/30",
   bronze: "bg-amber-600/20 text-amber-500 border-amber-600/30",
 };
@@ -40,11 +28,40 @@ const rankStyles: Record<number, string> = {
   3: "bg-amber-600/20 text-amber-500",
 };
 
-function fmtFollowers(n: number) {
-  return n >= 1000 ? (n / 1000).toFixed(1) + "K" : String(n);
+// ── Loading skeleton ──────────────────────────────────────────────────────────
+
+function MemberRowSkeleton() {
+  return (
+    <div className="flex items-center gap-x-4 px-6 py-3">
+      <div className="h-7 w-7 rounded-full bg-muted animate-pulse shrink-0" />
+      <div className="flex flex-1 items-center gap-2">
+        <div className="h-8 w-8 rounded-full bg-muted animate-pulse shrink-0" />
+        <div className="h-4 w-32 rounded bg-muted animate-pulse" />
+      </div>
+      <div className="h-4 w-16 rounded bg-muted animate-pulse" />
+      <div className="h-4 w-20 rounded bg-muted animate-pulse" />
+    </div>
+  );
 }
 
+// ── Page ──────────────────────────────────────────────────────────────────────
+
 export default function CommunityPage() {
+  const {
+    data: membersData,
+    isLoading: membersLoading,
+    isError: membersError,
+  } = useCommunityMembers({ limit: 20 });
+
+  const { data: analyticsData, isLoading: analyticsLoading } = useAnalyticsOverview("30d");
+
+  const members = membersData?.data ?? [];
+  const platforms = analyticsData?.platforms ?? [];
+  const totalFollowers = platforms.reduce((s, p) => s + (p.newFollowers ?? 0), 0);
+  const avgEngagement = platforms.length
+    ? platforms.reduce((s, p) => s + (p.engagementRate ?? 0), 0) / platforms.length
+    : null;
+
   function handleExport() {
     toast.success("Community data exported as CSV");
   }
@@ -64,82 +81,143 @@ export default function CommunityPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard title="Total Followers"  value={fmtFollowers(communityStats.totalFollowers)} change={communityStats.followersChange} trend="up" icon={Users} />
-        <StatCard title="Discord Members"  value={communityStats.discordMembers.toLocaleString()} change={communityStats.discordChange} trend="up" icon={MessageSquare} />
-        <StatCard title="Avg Engagement"   value={communityStats.avgEngagement} change={communityStats.engagementChange} trend="up" icon={Heart} />
-        <StatCard title="Top Platform"     value={communityStats.topPlatform} icon={Trophy} />
+        {analyticsLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="rounded-xl border bg-card p-5 space-y-2 animate-pulse">
+              <div className="h-3 w-24 rounded bg-muted" />
+              <div className="h-7 w-16 rounded bg-muted" />
+            </div>
+          ))
+        ) : (
+          <>
+            <StatCard
+              title="New Followers (30d)"
+              value={
+                totalFollowers > 0
+                  ? totalFollowers >= 1000
+                    ? `+${(totalFollowers / 1000).toFixed(1)}K`
+                    : `+${totalFollowers}`
+                  : "—"
+              }
+              trend="up"
+              icon={Users}
+            />
+            <StatCard
+              title="Avg Engagement"
+              value={avgEngagement != null ? `${avgEngagement.toFixed(1)}%` : "—"}
+              icon={Heart}
+            />
+            <StatCard
+              title="Platforms"
+              value={platforms.length > 0 ? String(platforms.length) : "—"}
+              icon={Trophy}
+            />
+            <StatCard
+              title="Members"
+              value={
+                membersData?.meta.total != null ? membersData.meta.total.toLocaleString() : "—"
+              }
+              icon={MessageSquare}
+            />
+          </>
+        )}
       </div>
-
-      {/* Follower growth chart */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Follower Growth by Platform</CardTitle>
-          <CardDescription>Last 6 months</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ChartContainer config={chartConfig} className="h-64 w-full">
-            <LineChart data={followerGrowth} margin={{ left: 0, right: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="date" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
-              <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
-              <ChartTooltip content={<ChartTooltipContent />} />
-              <ChartLegend content={<ChartLegendContent />} />
-              <Line type="monotone" dataKey="youtube" stroke="hsl(var(--chart-1))" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="twitch"  stroke="hsl(var(--chart-2))" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="discord" stroke="hsl(var(--chart-3))" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="tiktok"  stroke="hsl(var(--chart-4))" strokeWidth={2} dot={false} />
-            </LineChart>
-          </ChartContainer>
-        </CardContent>
-      </Card>
 
       {/* Top supporters */}
       <Card>
-        <CardHeader><CardTitle>Top Supporters</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>Top Supporters</CardTitle>
+          <CardDescription>Your most engaged community members</CardDescription>
+        </CardHeader>
         <CardContent className="px-0">
-          <div className="divide-y divide-border">
-            {topSupporters.map((s) => (
-              <div key={s.rank} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-6 py-3 text-sm">
-                <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${rankStyles[s.rank] ?? "bg-muted/40 text-muted-foreground"}`}>
-                  {s.rank}
-                </span>
-                <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <Avatar className="h-8 w-8 shrink-0">
-                    <AvatarFallback className="text-xs">{s.username.slice(0, 2).toUpperCase()}</AvatarFallback>
-                  </Avatar>
-                  <span className="truncate font-medium">{s.username}</span>
-                  <Badge variant="outline" className="shrink-0 text-xs gap-1">
-                    <PlatformIcon platform={s.platform} size={11} branded />
-                    {platformLabel[s.platform] ?? s.platform}
-                  </Badge>
-                </div>
-                <span className="flex shrink-0 items-center gap-1 text-muted-foreground">
-                  <Clock className="h-3.5 w-3.5" />{s.watchHours}h
-                </span>
-                <span className="shrink-0 text-muted-foreground">{s.messagesTotal.toLocaleString()} msgs</span>
-                {s.totalGifted > 0 && (
-                  <span className="flex shrink-0 items-center gap-1 text-muted-foreground">
-                    <Gift className="h-3.5 w-3.5" />{s.totalGifted}
-                  </span>
-                )}
-                <Badge variant="outline" className={`shrink-0 text-xs capitalize ${tierStyles[s.tier] ?? ""}`}>
-                  {s.tier}
-                </Badge>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  Since {new Date(s.joinedAt).getFullYear()}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="shrink-0 h-7 text-xs"
-                  onClick={() => handleMessage(s.username)}
-                >
-                  <MessageSquare className="h-3 w-3 mr-1" />
-                  Message
-                </Button>
-              </div>
-            ))}
-          </div>
+          {membersError ? (
+            <EmptyState preset="offline" subtitle="Could not load community data." size="sm" />
+          ) : membersLoading ? (
+            <div className="divide-y divide-border">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <MemberRowSkeleton key={i} />
+              ))}
+            </div>
+          ) : members.length === 0 ? (
+            <EmptyState
+              preset="no-community"
+              size="lg"
+              subtitle="Stream and engage with viewers to start building your fanbase."
+            />
+          ) : (
+            <div className="divide-y divide-border">
+              {members.map((m, idx) => {
+                const rank = idx + 1;
+                return (
+                  <div
+                    key={m.id}
+                    className="flex flex-wrap items-center gap-x-4 gap-y-2 px-6 py-3 text-sm"
+                  >
+                    <span
+                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                        rankStyles[rank] ?? "bg-muted/40 text-muted-foreground"
+                      }`}
+                    >
+                      {rank}
+                    </span>
+                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                      <Avatar className="h-8 w-8 shrink-0">
+                        <AvatarFallback className="text-xs">
+                          {m.username.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="truncate font-medium">{m.username}</span>
+                      {m.platforms.length > 0 && (
+                        <Badge variant="outline" className="shrink-0 text-xs gap-1">
+                          <PlatformIcon platform={m.platforms[0]} size={11} branded />
+                          {platformLabel[m.platforms[0]] ?? m.platforms[0]}
+                        </Badge>
+                      )}
+                    </div>
+                    {m.watchTimeHours != null && (
+                      <span className="flex shrink-0 items-center gap-1 text-muted-foreground">
+                        <Clock className="h-3.5 w-3.5" />
+                        {m.watchTimeHours}h
+                      </span>
+                    )}
+                    {m.chatMessages != null && (
+                      <span className="shrink-0 text-muted-foreground">
+                        {m.chatMessages.toLocaleString()} msgs
+                      </span>
+                    )}
+                    {m.subsGifted != null && m.subsGifted > 0 && (
+                      <span className="flex shrink-0 items-center gap-1 text-muted-foreground">
+                        <Gift className="h-3.5 w-3.5" />
+                        {m.subsGifted}
+                      </span>
+                    )}
+                    {m.loyaltyTier && (
+                      <Badge
+                        variant="outline"
+                        className={`shrink-0 text-xs capitalize ${tierStyles[m.loyaltyTier] ?? ""}`}
+                      >
+                        {m.loyaltyTier}
+                      </Badge>
+                    )}
+                    {m.joinedAt && (
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        Since {new Date(m.joinedAt).getFullYear()}
+                      </span>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="shrink-0 h-7 text-xs"
+                      onClick={() => handleMessage(m.username)}
+                    >
+                      <MessageSquare className="h-3 w-3 mr-1" />
+                      Message
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -75,6 +75,106 @@ export default async function catalogRoutes(app: FastifyInstance) {
     return { data: getCategories() };
   });
 
+  // GET /api/v1/catalog/connected — list connected integrations for org
+  // IMPORTANT: Must be registered before /:slug to avoid being caught by the parameterized route.
+  app.get(
+    "/connected",
+    { preHandler: [requireOrg] },
+    async (req) => {
+      const orgId = getOrgId(req);
+      const servers = await db.mcpServer.findMany({
+        where: { orgId },
+        select: { id: true, name: true, slug: true, status: true, lastPingAt: true, _count: { select: { tools: true } } },
+        orderBy: { name: "asc" },
+      });
+
+      return {
+        data: servers.map((s) => ({
+          id: s.id,
+          name: s.name,
+          slug: s.slug.replace(`${orgId}-`, ""),
+          status: s.status,
+          lastPingAt: s.lastPingAt,
+          toolCount: s._count.tools,
+        })),
+      };
+    },
+  );
+
+  // POST /api/v1/catalog/oauth/callback — handle OAuth code exchange
+  // IMPORTANT: Must be registered before /:slug to avoid being caught by the parameterized route.
+  app.post("/oauth/callback", async (req, reply) => {
+    const { code, state } = OAuthCallbackBody.parse(req.body);
+
+    // Retrieve stored state
+    const raw = await redis.get(`mcp:oauth:${state}`);
+    if (!raw) return sendError(reply, "BAD_REQUEST", "Invalid or expired OAuth state");
+    await redis.del(`mcp:oauth:${state}`);
+
+    const { orgId, slug, userId } = JSON.parse(raw) as { orgId: string; slug: string; userId?: string };
+    const integration = getIntegration(slug);
+    if (!integration || !integration.oauth) {
+      return sendError(reply, "BAD_REQUEST", "Integration not found or not OAuth-based");
+    }
+
+    // Exchange code for token
+    const clientId = process.env[integration.oauth.clientIdEnvVar];
+    const clientSecret = process.env[integration.oauth.clientSecretEnvVar];
+    if (!clientId || !clientSecret) {
+      return sendError(reply, "INTERNAL", "OAuth not configured on the server");
+    }
+
+    const callbackUrl = env.OAUTH_CALLBACK_URL ?? `${req.protocol}://${req.hostname}/api/v1/catalog/oauth/callback`;
+
+    const tokenRes = await fetch(integration.oauth.tokenUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        client_id: clientId,
+        client_secret: clientSecret,
+        code,
+        redirect_uri: callbackUrl,
+        grant_type: "authorization_code",
+      }),
+    });
+
+    if (!tokenRes.ok) {
+      const errBody = await tokenRes.text();
+      logger.error({ status: tokenRes.status, body: errBody }, "OAuth token exchange failed");
+      return sendError(reply, "BAD_REQUEST", "OAuth token exchange failed");
+    }
+
+    const tokenData = (await tokenRes.json()) as Record<string, string>;
+    const accessToken = tokenData.access_token;
+    if (!accessToken) return sendError(reply, "BAD_REQUEST", "No access_token in OAuth response");
+
+    // Hydrate config with the token
+    const config = hydrateConfig(integration.configTemplate, { ACCESS_TOKEN: accessToken });
+
+    const server = await db.mcpServer.upsert({
+      where: { slug: `${orgId}-${integration.slug}` },
+      create: {
+        orgId,
+        name: integration.name,
+        slug: `${orgId}-${integration.slug}`,
+        transport: integration.transport,
+        config,
+        status: "disconnected",
+      },
+      update: { config, status: "disconnected" },
+    });
+
+    try {
+      await McpManager.connect(server.id);
+    } catch (err: any) {
+      logger.error(err, "Failed to connect after OAuth");
+    }
+
+    return {
+      server: { id: server.id, name: server.name, slug: integration.slug, status: "connected" },
+    };
+  });
+
   // GET /api/v1/catalog/:slug — single integration detail
   app.get<{ Params: { slug: string } }>("/:slug", async (req, reply) => {
     const integration = getIntegration(req.params.slug);
@@ -202,79 +302,6 @@ export default async function catalogRoutes(app: FastifyInstance) {
     },
   );
 
-  // POST /api/v1/catalog/oauth/callback — handle OAuth code exchange
-  app.post("/oauth/callback", async (req, reply) => {
-    const { code, state } = OAuthCallbackBody.parse(req.body);
-
-    // Retrieve stored state
-    const raw = await redis.get(`mcp:oauth:${state}`);
-    if (!raw) return sendError(reply, "BAD_REQUEST", "Invalid or expired OAuth state");
-    await redis.del(`mcp:oauth:${state}`);
-
-    const { orgId, slug, userId } = JSON.parse(raw) as { orgId: string; slug: string; userId?: string };
-    const integration = getIntegration(slug);
-    if (!integration || !integration.oauth) {
-      return sendError(reply, "BAD_REQUEST", "Integration not found or not OAuth-based");
-    }
-
-    // Exchange code for token
-    const clientId = process.env[integration.oauth.clientIdEnvVar];
-    const clientSecret = process.env[integration.oauth.clientSecretEnvVar];
-    if (!clientId || !clientSecret) {
-      return sendError(reply, "INTERNAL", "OAuth not configured on the server");
-    }
-
-    const callbackUrl = env.OAUTH_CALLBACK_URL ?? `${req.protocol}://${req.hostname}/api/v1/catalog/oauth/callback`;
-
-    const tokenRes = await fetch(integration.oauth.tokenUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({
-        client_id: clientId,
-        client_secret: clientSecret,
-        code,
-        redirect_uri: callbackUrl,
-        grant_type: "authorization_code",
-      }),
-    });
-
-    if (!tokenRes.ok) {
-      const errBody = await tokenRes.text();
-      logger.error({ status: tokenRes.status, body: errBody }, "OAuth token exchange failed");
-      return sendError(reply, "BAD_REQUEST", "OAuth token exchange failed");
-    }
-
-    const tokenData = (await tokenRes.json()) as Record<string, string>;
-    const accessToken = tokenData.access_token;
-    if (!accessToken) return sendError(reply, "BAD_REQUEST", "No access_token in OAuth response");
-
-    // Hydrate config with the token
-    const config = hydrateConfig(integration.configTemplate, { ACCESS_TOKEN: accessToken });
-
-    const server = await db.mcpServer.upsert({
-      where: { slug: `${orgId}-${integration.slug}` },
-      create: {
-        orgId,
-        name: integration.name,
-        slug: `${orgId}-${integration.slug}`,
-        transport: integration.transport,
-        config,
-        status: "disconnected",
-      },
-      update: { config, status: "disconnected" },
-    });
-
-    try {
-      await McpManager.connect(server.id);
-    } catch (err: any) {
-      logger.error(err, "Failed to connect after OAuth");
-    }
-
-    return {
-      server: { id: server.id, name: server.name, slug: integration.slug, status: "connected" },
-    };
-  });
-
   // DELETE /api/v1/catalog/:slug/disconnect — disconnect an integration
   app.delete<{ Params: { slug: string } }>(
     "/:slug/disconnect",
@@ -290,31 +317,6 @@ export default async function catalogRoutes(app: FastifyInstance) {
       await db.mcpServer.delete({ where: { id: server.id } });
 
       reply.code(204);
-    },
-  );
-
-  // GET /api/v1/catalog/connected — list connected integrations for org
-  app.get(
-    "/connected",
-    { preHandler: [requireOrg] },
-    async (req) => {
-      const orgId = getOrgId(req);
-      const servers = await db.mcpServer.findMany({
-        where: { orgId },
-        select: { id: true, name: true, slug: true, status: true, lastPingAt: true, _count: { select: { tools: true } } },
-        orderBy: { name: "asc" },
-      });
-
-      return {
-        data: servers.map((s) => ({
-          id: s.id,
-          name: s.name,
-          slug: s.slug.replace(`${orgId}-`, ""),
-          status: s.status,
-          lastPingAt: s.lastPingAt,
-          toolCount: s._count.tools,
-        })),
-      };
     },
   );
 }

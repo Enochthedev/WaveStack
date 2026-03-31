@@ -9,7 +9,6 @@ import {
   useDeleteSkill,
   useExecuteSkill,
 } from "@/lib/hooks/use-workflows";
-import { skills as mockSkills } from "@/lib/mock-data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/shared/page-header";
+import { EmptyState } from "@/components/shared/empty-state";
 import {
   Dialog,
   DialogContent,
@@ -35,25 +35,47 @@ import {
 import { Download, Star, Layers, CheckCircle2, Loader2, Plus, Play, Trash2 } from "lucide-react";
 import type { Skill } from "@/types";
 
-const categories = ["all", "content", "growth", "analytics", "custom"] as const;
+const categories = ["all", "content", "growth", "analytics", "community", "custom"] as const;
 
-// ── Fallback mock data when backend is offline ───────────────────────────────
-const fallbackSkills: Skill[] = mockSkills.map((s) => ({
-  ...s,
-  category: s.category as Skill["category"],
-  description: s.description,
-  orgId: "",
-  forkedFromId: null,
-  ratingSum: Math.round(s.rating * 10),
-  ratingCount: 10,
-  authorId: "system",
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-  rating: s.rating,
-  stepsCount: s.stepsCount,
-}));
+// ── Loading skeleton ──────────────────────────────────────────────────────────
 
-// ── Skill card for marketplace grid ──────────────────────────────────────────
+function SkillCardSkeleton() {
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="h-4 w-32 rounded bg-muted animate-pulse" />
+          <div className="h-5 w-16 rounded-full bg-muted animate-pulse" />
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-1.5">
+          <div className="h-3 w-full rounded bg-muted animate-pulse" />
+          <div className="h-3 w-3/4 rounded bg-muted animate-pulse" />
+        </div>
+        <div className="flex gap-4">
+          <div className="h-3 w-16 rounded bg-muted animate-pulse" />
+          <div className="h-3 w-12 rounded bg-muted animate-pulse" />
+          <div className="h-3 w-14 rounded bg-muted animate-pulse" />
+        </div>
+        <div className="h-8 w-full rounded bg-muted animate-pulse" />
+      </CardContent>
+    </Card>
+  );
+}
+
+function SkillGridSkeleton() {
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <SkillCardSkeleton key={i} />
+      ))}
+    </div>
+  );
+}
+
+// ── Skill card grid ───────────────────────────────────────────────────────────
+
 function SkillGrid({
   items,
   mode,
@@ -62,6 +84,7 @@ function SkillGrid({
   onInstall,
   onExecute,
   onDelete,
+  onBrowse,
 }: {
   items: Skill[];
   mode: "marketplace" | "owned";
@@ -70,7 +93,21 @@ function SkillGrid({
   onInstall?: (skill: Skill) => void;
   onExecute?: (skill: Skill) => void;
   onDelete?: (skill: Skill) => void;
+  onBrowse?: () => void;
 }) {
+  if (items.length === 0) {
+    if (mode === "owned") {
+      return (
+        <EmptyState
+          preset="no-skills"
+          size="lg"
+          cta={onBrowse ? { label: "Browse Marketplace", onClick: onBrowse } : undefined}
+        />
+      );
+    }
+    return <EmptyState preset="no-marketplace-skills" size="lg" />;
+  }
+
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {items.map((skill) => (
@@ -145,16 +182,12 @@ function SkillGrid({
           </CardContent>
         </Card>
       ))}
-      {items.length === 0 && (
-        <div className="col-span-full flex items-center justify-center h-32 text-sm text-muted-foreground">
-          No skills found.
-        </div>
-      )}
     </div>
   );
 }
 
-// ── Main page ────────────────────────────────────────────────────────────────
+// ── Main page ─────────────────────────────────────────────────────────────────
+
 export default function SkillsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [tab, setTab] = useState<"owned" | "marketplace">("marketplace");
@@ -168,19 +201,21 @@ export default function SkillsPage() {
     category: "custom",
   });
 
-  // Real data hooks
-  const { data: ownedSkills, isError: ownedError } = useSkills();
-  const { data: marketplaceSkills, isError: marketplaceError } =
-    useMarketplaceSkills(marketplaceCategory);
+  const { data: ownedSkills, isLoading: ownedLoading, isError: ownedError } = useSkills();
+  const {
+    data: marketplaceSkills,
+    isLoading: marketplaceLoading,
+    isError: marketplaceError,
+  } = useMarketplaceSkills(marketplaceCategory);
+
   const createSkill = useCreateSkill();
   const installSkill = useInstallSkill();
   const deleteSkill = useDeleteSkill();
   const executeSkill = useExecuteSkill();
 
-  // Fallback to mock data when backend is offline
+  const owned: Skill[] = ownedSkills ?? [];
+  const marketplace: Skill[] = marketplaceSkills ?? [];
   const isOffline = ownedError && marketplaceError;
-  const owned: Skill[] = ownedSkills ?? (isOffline ? [] : []);
-  const marketplace: Skill[] = marketplaceSkills ?? (isOffline ? fallbackSkills : []);
 
   function handleInstall(skill: Skill) {
     setInstallingId(skill.id);
@@ -215,6 +250,7 @@ export default function SkillsPage() {
         onSuccess: () => {
           setCreateOpen(false);
           setNewSkill({ name: "", description: "", category: "custom" });
+          setTab("owned");
         },
       },
     );
@@ -230,65 +266,88 @@ export default function SkillsPage() {
       </PageHeader>
 
       {isOffline && (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-xs text-amber-600 dark:text-amber-400">
-          Backend offline — showing placeholder data. Changes won't persist.
-        </div>
+        <EmptyState
+          preset="offline"
+          size="lg"
+          subtitle="Can't reach the skills service. Check your connection and try again."
+        />
       )}
 
-      {owned.length > 0 && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <CheckCircle2 className="h-4 w-4 text-green-500" />
-          <span>
-            <span className="font-medium text-foreground">{owned.length}</span> skill
-            {owned.length !== 1 ? "s" : ""} installed
-          </span>
-        </div>
+      {!isOffline && (
+        <>
+          {owned.length > 0 && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+              <span>
+                <span className="font-medium text-foreground">{owned.length}</span> skill
+                {owned.length !== 1 ? "s" : ""} installed
+              </span>
+            </div>
+          )}
+
+          <Tabs value={tab} onValueChange={(v) => setTab(v as "owned" | "marketplace")}>
+            <TabsList>
+              <TabsTrigger value="marketplace">Marketplace</TabsTrigger>
+              <TabsTrigger value="owned">
+                My Skills
+                {owned.length > 0 && (
+                  <span className="ml-1.5 rounded-full bg-primary/15 px-1.5 py-px text-[10px] font-medium text-primary">
+                    {owned.length}
+                  </span>
+                )}
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="marketplace" className="mt-6 space-y-4">
+              <div className="flex gap-1 flex-wrap">
+                {categories.map((cat) => (
+                  <Button
+                    key={cat}
+                    size="sm"
+                    variant={
+                      (cat === "all" && !marketplaceCategory) || marketplaceCategory === cat
+                        ? "default"
+                        : "outline"
+                    }
+                    className="h-7 text-xs capitalize"
+                    onClick={() => setMarketplaceCategory(cat === "all" ? undefined : cat)}
+                  >
+                    {cat}
+                  </Button>
+                ))}
+              </div>
+
+              {marketplaceLoading ? (
+                <SkillGridSkeleton />
+              ) : (
+                <SkillGrid
+                  items={marketplace}
+                  mode="marketplace"
+                  installingId={installingId}
+                  executingId={null}
+                  onInstall={handleInstall}
+                />
+              )}
+            </TabsContent>
+
+            <TabsContent value="owned" className="mt-6">
+              {ownedLoading ? (
+                <SkillGridSkeleton />
+              ) : (
+                <SkillGrid
+                  items={owned}
+                  mode="owned"
+                  installingId={null}
+                  executingId={executingId}
+                  onExecute={handleExecute}
+                  onDelete={handleDelete}
+                  onBrowse={() => setTab("marketplace")}
+                />
+              )}
+            </TabsContent>
+          </Tabs>
+        </>
       )}
-
-      <Tabs value={tab} onValueChange={(v) => setTab(v as "owned" | "marketplace")}>
-        <TabsList>
-          <TabsTrigger value="marketplace">Marketplace</TabsTrigger>
-          <TabsTrigger value="owned">My Skills</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="marketplace" className="mt-6 space-y-4">
-          <div className="flex gap-1">
-            {categories.map((cat) => (
-              <Button
-                key={cat}
-                size="sm"
-                variant={
-                  (cat === "all" && !marketplaceCategory) || marketplaceCategory === cat
-                    ? "default"
-                    : "outline"
-                }
-                className="h-7 text-xs capitalize"
-                onClick={() => setMarketplaceCategory(cat === "all" ? undefined : cat)}
-              >
-                {cat}
-              </Button>
-            ))}
-          </div>
-          <SkillGrid
-            items={marketplace}
-            mode="marketplace"
-            installingId={installingId}
-            executingId={null}
-            onInstall={handleInstall}
-          />
-        </TabsContent>
-
-        <TabsContent value="owned" className="mt-6">
-          <SkillGrid
-            items={owned}
-            mode="owned"
-            installingId={null}
-            executingId={executingId}
-            onExecute={handleExecute}
-            onDelete={handleDelete}
-          />
-        </TabsContent>
-      </Tabs>
 
       {/* Create Skill Dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
@@ -329,6 +388,7 @@ export default function SkillsPage() {
                   <SelectItem value="content">Content</SelectItem>
                   <SelectItem value="growth">Growth</SelectItem>
                   <SelectItem value="analytics">Analytics</SelectItem>
+                  <SelectItem value="community">Community</SelectItem>
                   <SelectItem value="custom">Custom</SelectItem>
                 </SelectContent>
               </Select>

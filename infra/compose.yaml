@@ -201,23 +201,34 @@ services:
       retries: 5
 
   # =====================
-  # (Commented Example) Future: Ollama + Gateway
+  # Ollama + Gateway  (profile: ai — add --profile ai to enable)
   # =====================
-  # ollama:
-  #   image: ollama/ollama:latest
-  #   profiles: ["ai"]
-  #   env_file: ["../.env"]
-  #   ports: ["${OLLAMA_PORT}:${OLLAMA_PORT_INTERNAL}"]
-  #   volumes: ["ollama:/root/.ollama"]
-  #
-  # ollama-gw:
-  #   build: ../services/ollama-gw
-  #   profiles: ["ai"]
-  #   env_file: ["../.env","../services/ollama-gw/.env"]
-  #   environment:
-  #     PORT: ${OLLAMA_GW_PORT_INTERNAL}
-  #     OLLAMA_URL: ${OLLAMA_INTERNAL_URL}
-  #   ports: ["${OLLAMA_GW_PORT}:${OLLAMA_GW_PORT_INTERNAL}"]
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ai"]
+    env_file: ["../.env"]
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama:/root/.ollama
+    restart: unless-stopped
+
+  ollama-gw:
+    build: ../services/ollama-gw
+    profiles: ["ai"]
+    env_file: ["../.env"]
+    environment:
+      PORT: ${OLLAMA_GW_PORT_INTERNAL:-4200}
+      OLLAMA_URL: ${OLLAMA_INTERNAL_URL:-http://ollama:11434}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      DEFAULT_MODEL: ${OLLAMA_MODEL:-llama3.2}
+      CACHE_TTL_SECONDS: ${OLLAMA_CACHE_TTL:-300}
+    ports:
+      - "${OLLAMA_GW_PORT:-4200}:${OLLAMA_GW_PORT_INTERNAL:-4200}"
+    depends_on:
+      - ollama
+      - redis
+    restart: unless-stopped
 
   # =====================
   # (Commented Example) Future: NGINX instead of Caddy
@@ -241,7 +252,7 @@ services:
 volumes:
   pg: {}
   clips: {}
-  # ollama: {}   # uncomment if using Ollama
+  ollama: {}
 
 # =====================
 # HOW TO: Add a new service (demo)

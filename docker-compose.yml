@@ -41,22 +41,14 @@ services:
     environment:
       - IS_PERSISTENT=TRUE
 
-  # Ollama for local LLM inference
-  ollama:
-    image: ollama/ollama:latest
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    # Uncomment for GPU support (requires nvidia-container-toolkit)
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
-    restart: unless-stopped
+  # Ollama — only useful with a GPU. Excluded from Railway deploys.
+  # To run locally: docker compose --profile ai up
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   profiles: ["ai"]
+  #   ports: ["11434:11434"]
+  #   volumes: [ollama_data:/root/.ollama]
+  #   restart: unless-stopped
 
   # ML Training Service (Python/FastAPI)
   ml-training:
@@ -251,11 +243,11 @@ services:
       - REDIS_URL=redis://redis:6379
       - CHROMA_HOST=chromadb
       - CHROMA_PORT=8000
-      - AI_PROVIDER=${AI_PROVIDER:-ollama}
+      - AI_PROVIDER=${AI_PROVIDER:-anthropic}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - OLLAMA_BASE_URL=http://ollama:11434
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama2}
+      - OLLAMA_BASE_URL=${OLLAMA_INTERNAL_URL:-http://ollama:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2}
       - ML_TRAINING_URL=http://ml-training:8300
       - PERSONALITY_TEMPERATURE=0.8
       - PERSONALITY_MAX_TOKENS=500
@@ -267,7 +259,6 @@ services:
       - postgres
       - redis
       - chromadb
-      - ollama
       - ml-training
     restart: unless-stopped
 
@@ -426,7 +417,7 @@ services:
   # Analytics Dashboard (Go - 10-50x faster)
   analytics-dashboard:
     build:
-      context: ./services/analytics-dashboard-go
+      context: ./services/analytics-dashboard
       dockerfile: Dockerfile
     ports:
       - "8800:8800"
@@ -463,7 +454,7 @@ services:
   # Live Stream Analytics (Go - 100x faster concurrency)
   livestream-analytics:
     build:
-      context: ./services/livestream-analytics-go
+      context: ./services/livestream-analytics
       dockerfile: Dockerfile
     ports:
       - "9500:9500"
@@ -480,7 +471,7 @@ services:
   # Sponsor/Ad Manager (TypeScript/Fastify - 5-10x faster)
   sponsor-manager:
     build:
-      context: ./services/sponsor-manager-ts
+      context: ./services/sponsor-manager
       dockerfile: Dockerfile
     ports:
       - "8900:8900"
@@ -497,7 +488,7 @@ services:
   # Merchandise Integration (TypeScript/Fastify - 5-10x faster)
   merch-integration:
     build:
-      context: ./services/merch-integration-ts
+      context: ./services/merch-integration
       dockerfile: Dockerfile
     ports:
       - "9800:9800"
@@ -660,6 +651,51 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
+  # ── Link Router :3500 ────────────────────────────────────────────────────────
+  link-router:
+    build:
+      context: ./services/link-router
+      dockerfile: Dockerfile
+    ports:
+      - "3500:3500"
+    environment:
+      - PORT=3500
+      - REDIS_URL=redis://redis:6379
+      - BASE_URL=${LINK_ROUTER_BASE_URL:-http://localhost:3500}
+      - LINK_TTL_DAYS=${LINK_TTL_DAYS:-365}
+    depends_on:
+      - redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3500/health > /dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ── Streaming Integrations :3600 ─────────────────────────────────────────────
+  streaming-integrations:
+    build:
+      context: ./services/streaming-integrations
+      dockerfile: Dockerfile
+    ports:
+      - "3600:3600"
+    environment:
+      - PORT=3600
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3600/health > /dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ollama-gw is intentionally excluded from the default stack.
+  # Ollama requires a GPU to be useful. On Railway (CPU-only), use model-router
+  # which routes to Anthropic / OpenAI / Together AI instead.
+  # To run locally with a GPU: docker compose --profile ai up
 
   # ── Stream Engine :3400 (Go/Fiber) ────────────────────────────────────────────
   stream-engine:

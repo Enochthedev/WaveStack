@@ -4,8 +4,8 @@ WORKDIR /app
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    g++ \
+    build-essential \
+    curl \
     libatomic1 \
     && rm -rf /var/lib/apt/lists/*
 
@@ -15,17 +15,14 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy Prisma schema
-COPY prisma ./prisma
+# Copy application code
+COPY . .
 
 # Generate Prisma client
-RUN prisma generate
-
-# Copy application
-COPY src ./src
+RUN prisma generate --schema=schema.prisma
 
 # Expose port
 EXPOSE 8200
 
 # Run the application
-CMD ["python", "-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8200"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8200"]

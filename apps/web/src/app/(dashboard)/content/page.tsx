@@ -2,8 +2,9 @@
 
 import { useState, useRef } from "react";
 import { toast } from "sonner";
-import { contentAssets as initialAssets } from "@/lib/mock-data";
+import { useAssets } from "@/lib/hooks/use-assets";
 import { PageHeader } from "@/components/shared/page-header";
+import { EmptyState } from "@/components/shared/empty-state";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -42,7 +43,15 @@ import {
   ImageIcon,
 } from "lucide-react";
 
-type Asset = (typeof initialAssets)[number];
+type Asset = {
+  id: string;
+  filename: string;
+  mimeType: string;
+  duration?: number;
+  sizeBytes: number;
+  status: string;
+  createdAt: string;
+};
 
 function formatFileSize(bytes: number) {
   return (bytes / (1024 * 1024)).toFixed(1) + " MB";
@@ -54,8 +63,30 @@ function formatDuration(seconds: number) {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
+// ── Skeletons ──────────────────────────────────────────────────────────────
+
+function AssetCardSkeleton() {
+  return (
+    <Card className="overflow-hidden animate-pulse">
+      <div className="h-40 bg-muted" />
+      <CardContent className="p-4 space-y-2">
+        <div className="h-4 w-3/4 rounded bg-muted" />
+        <div className="flex gap-2">
+          <div className="h-5 w-16 rounded bg-muted" />
+          <div className="h-5 w-16 rounded bg-muted" />
+        </div>
+        <div className="h-3 w-24 rounded bg-muted" />
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Page ───────────────────────────────────────────────────────────────────
+
 export default function ContentPage() {
-  const [assets, setAssets] = useState<Asset[]>(initialAssets);
+  const { data: assetsData, isLoading, isError } = useAssets({ limit: 50 });
+  const assets: Asset[] = assetsData?.data ?? [];
+
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Asset | null>(null);
@@ -80,32 +111,19 @@ export default function ContentPage() {
   }
 
   async function handleUpload() {
+    if (!selectedFile) return;
     setUploading(true);
-    await new Promise((r) => setTimeout(r, 1500));
-
-    const isVideo = selectedFile?.type.startsWith("video") ?? true;
-    const newAsset: Asset = {
-      id: `asset-${Date.now()}`,
-      filename: selectedFile?.name ?? "new-upload.mp4",
-      mimeType: selectedFile?.type ?? "video/mp4",
-      sizeBytes: selectedFile?.size ?? 50 * 1024 * 1024,
-      status: "processing",
-      duration: isVideo ? 120 : 0,
-      createdAt: new Date().toISOString(),
-      projectId: "proj-1",
-    };
-
-    setAssets((prev) => [newAsset, ...prev]);
+    // TODO: wire to real upload API when available
+    toast.info("Upload API not yet implemented");
     setUploading(false);
     setUploadOpen(false);
     setSelectedFile(null);
-    toast.success(`"${newAsset.filename}" uploaded — processing`);
   }
 
-  async function handleDelete() {
+  function handleDelete() {
     if (!deleteTarget) return;
-    setAssets((prev) => prev.filter((a) => a.id !== deleteTarget.id));
-    toast.success(`"${deleteTarget.filename}" deleted`);
+    // TODO: wire to real delete API when available
+    toast.info("Delete API not yet implemented");
     setDeleteTarget(null);
   }
 
@@ -146,75 +164,84 @@ export default function ContentPage() {
         <p className="text-xs text-muted-foreground mt-1">MP4, MOV, JPG, PNG up to 2 GB</p>
       </div>
 
-      {assets.length === 0 && (
-        <Card>
-          <CardContent className="flex items-center justify-center h-40 text-muted-foreground text-sm">
-            No assets yet. Upload your first file above.
-          </CardContent>
-        </Card>
+      {isError ? (
+        <EmptyState preset="offline" subtitle="Could not load content library." />
+      ) : isLoading ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <AssetCardSkeleton key={i} />
+          ))}
+        </div>
+      ) : assets.length === 0 ? (
+        <EmptyState
+          preset="generic"
+          title="No assets yet"
+          subtitle="Upload your first file above to get started."
+          size="lg"
+        />
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {assets.map((asset) => {
+            const isVideo = asset.mimeType.startsWith("video");
+            return (
+              <Card key={asset.id} className="overflow-hidden">
+                <div
+                  className="h-40 bg-muted flex items-center justify-center cursor-pointer hover:bg-muted/70 transition-colors relative"
+                  onClick={() => setPreviewAsset(asset)}
+                >
+                  {isVideo ? (
+                    <Film className="h-10 w-10 text-muted-foreground/50" />
+                  ) : (
+                    <ImageIcon className="h-10 w-10 text-muted-foreground/50" />
+                  )}
+                  <span className="absolute bottom-2 left-2 text-xs bg-black/60 text-white px-1.5 py-0.5 rounded">
+                    {isVideo ? "Video" : "Image"}
+                  </span>
+                </div>
+                <CardContent className="p-4 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-medium truncate flex-1">{asset.filename}</p>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => setPreviewAsset(asset)}>
+                          <Eye className="h-4 w-4 mr-2" />
+                          Preview
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleDownload(asset)}>
+                          <Download className="h-4 w-4 mr-2" />
+                          Download
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={() => setDeleteTarget(asset)}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="outline" className="text-xs">
+                      {asset.mimeType}
+                    </Badge>
+                    <StatusBadge status={asset.status} />
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                    <span>{formatFileSize(asset.sizeBytes)}</span>
+                    {asset.duration && <span>{formatDuration(asset.duration)}</span>}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
       )}
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {assets.map((asset) => {
-          const isVideo = asset.mimeType.startsWith("video");
-          return (
-            <Card key={asset.id} className="overflow-hidden">
-              <div
-                className="h-40 bg-muted flex items-center justify-center cursor-pointer hover:bg-muted/70 transition-colors relative"
-                onClick={() => setPreviewAsset(asset)}
-              >
-                {isVideo ? (
-                  <Film className="h-10 w-10 text-muted-foreground/50" />
-                ) : (
-                  <ImageIcon className="h-10 w-10 text-muted-foreground/50" />
-                )}
-                <span className="absolute bottom-2 left-2 text-xs bg-black/60 text-white px-1.5 py-0.5 rounded">
-                  {isVideo ? "Video" : "Image"}
-                </span>
-              </div>
-              <CardContent className="p-4 space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm font-medium truncate flex-1">{asset.filename}</p>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => setPreviewAsset(asset)}>
-                        <Eye className="h-4 w-4 mr-2" />
-                        Preview
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleDownload(asset)}>
-                        <Download className="h-4 w-4 mr-2" />
-                        Download
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="text-destructive focus:text-destructive"
-                        onClick={() => setDeleteTarget(asset)}
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Badge variant="outline" className="text-xs">
-                    {asset.mimeType}
-                  </Badge>
-                  <StatusBadge status={asset.status} />
-                </div>
-                <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                  <span>{formatFileSize(asset.sizeBytes)}</span>
-                  {asset.duration && <span>{formatDuration(asset.duration)}</span>}
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
 
       {/* Upload Dialog */}
       <Dialog

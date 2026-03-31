@@ -29,7 +29,6 @@ import {
   Wrench,
   Bot,
   Shield,
-  Bell,
   Settings,
   UsersRound,
   ChevronLeft,
@@ -41,11 +40,7 @@ import {
   CreditCard,
   KeyRound,
   Palette,
-  TrendingUp,
-  Banknote,
-  HandCoins,
-  ScrollText,
-  Star,
+  Bell,
   MonitorPlay,
   Tv2,
 } from "lucide-react";
@@ -75,6 +70,11 @@ type NavSection = {
 };
 
 // ── Nav tree ───────────────────────────────────────────────────────────────
+//
+// Rules enforced here:
+//   1. Every href is unique across the entire tree — no two items share a route.
+//   2. A parent href is never the same as one of its own children's hrefs.
+//   3. Children of one section never point at the primary route of another section.
 
 const navSections: NavSection[] = [
   {
@@ -101,13 +101,13 @@ const navSections: NavSection[] = [
         icon: Brain,
         children: [
           { label: "Tasks", href: "/agents/tasks", icon: ListChecks },
+          { label: "Chat", href: "/agents/chat", icon: MessageSquare },
           { label: "Workflows", href: "/workflows", icon: Workflow },
           { label: "Skills", href: "/skills", icon: Sparkles },
           { label: "Knowledge", href: "/knowledge", icon: BookOpen },
           { label: "MCP Tools", href: "/mcp", icon: Wrench },
         ],
       },
-      { label: "Pocket Jarvis", href: "/agents/chat", icon: MessageSquare },
     ],
   },
   {
@@ -142,36 +142,22 @@ const navSections: NavSection[] = [
         label: "Analytics",
         href: "/analytics",
         icon: BarChart3,
-        children: [
-          { label: "Streams", href: "/analytics", icon: Tv2 },
-          { label: "Audience", href: "/community", icon: Users },
-          { label: "Revenue", href: "/monetization", icon: DollarSign },
-        ],
+        children: [{ label: "Streams", href: "/analytics/streams", icon: Tv2 }],
       },
-    ],
-  },
-  {
-    label: "Grow",
-    items: [
-      { label: "Competitor Intel", href: "/competitors", icon: Swords },
-      { label: "Trending Topics", href: "/content", icon: TrendingUp },
+      { label: "Competitors", href: "/competitors", icon: Swords },
       { label: "SEO Tools", href: "/seo", icon: Search },
-    ],
-  },
-  {
-    label: "Money",
-    items: [
-      { label: "Revenue", href: "/monetization", icon: Banknote },
-      { label: "Sponsor Manager", href: "/monetization", icon: HandCoins },
     ],
   },
   {
     label: "Community",
     items: [
-      { label: "Top Fans", href: "/community", icon: Star },
+      { label: "Community", href: "/community", icon: Users },
       { label: "Moderation", href: "/moderation", icon: Shield },
-      { label: "Chat Logs", href: "/community", icon: ScrollText },
     ],
+  },
+  {
+    label: "Money",
+    items: [{ label: "Monetization", href: "/monetization", icon: DollarSign }],
   },
   {
     label: "Settings",
@@ -183,7 +169,6 @@ const navSections: NavSection[] = [
         children: [
           { label: "Platforms", href: "/settings/integrations", icon: Link2 },
           { label: "Profile", href: "/settings/account", icon: User },
-          { label: "Agent Config", href: "/agents", icon: Brain },
           { label: "Notifications", href: "/settings/notifications", icon: Bell },
           { label: "Billing", href: "/settings/billing", icon: CreditCard },
           { label: "Security", href: "/settings/security", icon: Shield },
@@ -205,6 +190,22 @@ type FlyoutState = {
   top: number;
 };
 
+// ── Active state helpers ───────────────────────────────────────────────────
+//
+// An item is "active" only when pathname exactly matches its href.
+// An item has "childActive" when a child is the active route.
+// We deliberately do NOT use startsWith on parent hrefs to avoid false positives
+// (e.g., /analytics should not activate when on /analytics/streams via prefix).
+
+function isExactlyActive(pathname: string, href: string) {
+  return pathname === href;
+}
+
+function isChildRouteActive(pathname: string, href: string) {
+  // Match /foo/bar but NOT /foobar
+  return pathname.startsWith(href + "/");
+}
+
 // ── Component ──────────────────────────────────────────────────────────────
 
 interface SidebarProps {
@@ -222,7 +223,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Mount guard for createPortal (SSR-safe).
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -233,7 +233,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     for (const section of navSections) {
       for (const item of section.items) {
         const childMatch = item.children?.some(
-          (c) => pathname === c.href || pathname.startsWith(c.href + "/"),
+          (c) => isExactlyActive(pathname, c.href) || isChildRouteActive(pathname, c.href),
         );
         if (childMatch) toOpen.add(item.href);
       }
@@ -243,7 +243,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     }
   }, [pathname]);
 
-  // Close flyout when sidebar expands.
   useEffect(() => {
     if (!collapsed) setFlyout(null);
   }, [collapsed]);
@@ -253,11 +252,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     e?.stopPropagation();
     setOpenItems((prev) => {
       const next = new Set(prev);
-      if (next.has(href)) {
-        next.delete(href);
-      } else {
-        next.add(href);
-      }
+      if (next.has(href)) next.delete(href);
+      else next.add(href);
       return next;
     });
   }
@@ -291,31 +287,34 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             onMouseLeave={scheduleFlyoutClose}
           >
             <div className="rounded-lg border border-border bg-popover shadow-lg overflow-hidden min-w-45">
-              {/* Parent row */}
               <Link
                 href={flyout.item.href}
                 onClick={() => setFlyout(null)}
                 className={cn(
                   "flex items-center gap-2.5 px-3 py-2.5 text-sm font-medium transition-colors hover:bg-accent/50",
-                  pathname === flyout.item.href ? "text-primary" : "text-popover-foreground",
+                  isExactlyActive(pathname, flyout.item.href)
+                    ? "text-primary"
+                    : "text-popover-foreground",
                 )}
               >
                 <flyout.item.icon
                   className={cn(
                     "h-4 w-4 shrink-0",
-                    pathname === flyout.item.href ? "text-primary" : "text-muted-foreground",
+                    isExactlyActive(pathname, flyout.item.href)
+                      ? "text-primary"
+                      : "text-muted-foreground",
                   )}
                 />
                 {flyout.item.label}
               </Link>
 
-              {/* Children */}
               {flyout.visChildren.length > 0 && (
                 <>
                   <div className="mx-2 h-px bg-border/60" />
                   {flyout.visChildren.map((child) => {
                     const isChildActive =
-                      pathname === child.href || pathname.startsWith(child.href + "/");
+                      isExactlyActive(pathname, child.href) ||
+                      isChildRouteActive(pathname, child.href);
                     return (
                       <Link
                         key={child.href}
@@ -329,10 +328,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                         )}
                       >
                         <child.icon
-                          className={cn(
-                            "h-3.5 w-3.5 shrink-0",
-                            isChildActive ? "text-primary" : "",
-                          )}
+                          className={cn("h-3.5 w-3.5 shrink-0", isChildActive && "text-primary")}
                         />
                         {child.label}
                       </Link>
@@ -425,12 +421,13 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
                   {/* Items */}
                   {visibleItems.map((item) => {
-                    const isActive = pathname === item.href;
+                    const isActive = isExactlyActive(pathname, item.href);
                     const isOpen = openItems.has(item.href);
                     const hasChildren = Boolean(item.children?.length);
                     const visChildren = item.children?.filter((c) => can(c.href)) ?? [];
                     const childActive = visChildren.some(
-                      (c) => pathname === c.href || pathname.startsWith(c.href + "/"),
+                      (c) =>
+                        isExactlyActive(pathname, c.href) || isChildRouteActive(pathname, c.href),
                     );
 
                     const parentRowClass = cn(
@@ -501,7 +498,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                           <div className="ml-4 mt-0.5 mb-1 border-l border-border/60 pl-2 space-y-0.5">
                             {visChildren.map((child) => {
                               const isChildActive =
-                                pathname === child.href || pathname.startsWith(child.href + "/");
+                                isExactlyActive(pathname, child.href) ||
+                                isChildRouteActive(pathname, child.href);
                               return (
                                 <Link
                                   key={child.href}
@@ -516,7 +514,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                                   <child.icon
                                     className={cn(
                                       "h-3.5 w-3.5 shrink-0",
-                                      isChildActive ? "text-primary" : "",
+                                      isChildActive && "text-primary",
                                     )}
                                   />
                                   {child.label}
@@ -526,13 +524,14 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                           </div>
                         )}
 
-                        {/* ── Children — COLLAPSED mode (stacked icon buttons) ── */}
+                        {/* ── Children — COLLAPSED mode ── */}
                         {collapsed && (isOpen || childActive) && visChildren.length > 0 && (
                           <div className="flex flex-col items-center gap-0.5 py-0.5 relative">
                             <div className="absolute left-1/2 top-0 bottom-0 w-px -translate-x-1/2 bg-border/50" />
                             {visChildren.map((child) => {
                               const isChildActive =
-                                pathname === child.href || pathname.startsWith(child.href + "/");
+                                isExactlyActive(pathname, child.href) ||
+                                isChildRouteActive(pathname, child.href);
                               return (
                                 <Link
                                   key={child.href}
@@ -576,7 +575,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         </div>
       </aside>
 
-      {/* Hover flyout portal — rendered outside sidebar to avoid overflow clipping */}
       {flyoutPortal}
     </>
   );
