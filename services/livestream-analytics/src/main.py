@@ -5,7 +5,7 @@ from redis import asyncio as aioredis
 from .config import settings
 from .routes import analytics
 
-logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL))
+logging.basicConfig(level=settings.LOG_LEVEL.upper())
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="WaveStack Live Stream Analytics", version="1.0.0")
