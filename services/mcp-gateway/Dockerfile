@@ -5,7 +5,7 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 
 COPY package.json pnpm-lock.yaml* ./
 COPY prisma ./prisma/
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --no-frozen-lockfile
 RUN pnpm prisma generate
 
 COPY . .
@@ -19,7 +19,7 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 
 COPY package.json pnpm-lock.yaml* ./
 COPY prisma ./prisma/
-RUN pnpm install --prod --frozen-lockfile
+RUN pnpm install --prod --no-frozen-lockfile
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
