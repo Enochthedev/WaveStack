@@ -17,8 +17,7 @@ import {
 import { Sparkles, Send, Loader2, StopCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { brand } from "@/lib/colors";
-
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+import { BASE_URL } from "@/lib/api";
 
 type Role = "user" | "assistant";
 

@@ -8,7 +8,8 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-func internalOnly(c *fiber.Ctx) error {
+// InternalOnly is middleware that rejects requests without a valid internal service secret.
+func InternalOnly(c *fiber.Ctx) error {
 	secret := os.Getenv("INTERNAL_SERVICE_SECRET")
 	if secret == "" {
 		secret = "dev-internal-secret"
@@ -25,14 +26,14 @@ func Register(app *fiber.App) {
 
 	// ── Stream events ─────────────────────────────────────────────────────────
 	// POST /v1/events — ingest a stream signal from the desktop app
-	v1.Post("/events", internalOnly, ingestEvent)
+	v1.Post("/events", InternalOnly, ingestEvent)
 
 	// POST /v1/commands/:orgId — send a command to a connected desktop app
-	v1.Post("/commands/:orgId", internalOnly, sendCommand)
+	v1.Post("/commands/:orgId", InternalOnly, sendCommand)
 
 	// GET /v1/sessions — active stream sessions
-	v1.Get("/sessions", internalOnly, listSessions)
+	v1.Get("/sessions", InternalOnly, listSessions)
 
 	// POST /v1/sessions/:id/clip — trigger a clip
-	v1.Post("/sessions/:id/clip", internalOnly, triggerClip)
+	v1.Post("/sessions/:id/clip", InternalOnly, triggerClip)
 }

@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { api, type StreamSession } from "@/lib/api";
+import type { RelayStatus } from "@/types";
 import { toast } from "sonner";
 
 function useAuthCtx() {
@@ -56,5 +57,59 @@ export function useEndStream() {
       toast.success(`Stream ended · ${session.title ?? "Untitled"}`);
     },
     onError: () => toast.error("Failed to end stream"),
+  });
+}
+
+// ── Rebroadcast / multistream relay ─────────────────────────────────────────
+
+export function useRelayStatus() {
+  const ctx = useAuthCtx();
+  return useQuery<RelayStatus>({
+    queryKey: ["stream", "relay", "status"],
+    queryFn: () => api.stream.relay.status(ctx!),
+    enabled: !!ctx,
+    refetchInterval: 5_000,
+    staleTime: 3_000,
+  });
+}
+
+export function useStartRelay() {
+  const ctx = useAuthCtx();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: {
+      sourceUrl: string;
+      platforms: { platform: string; streamKey: string }[];
+    }) => api.stream.relay.start(ctx!, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["stream", "relay"] });
+      toast.success("Multistream relay started");
+    },
+    onError: () => toast.error("Failed to start relay"),
+  });
+}
+
+export function useStopRelay() {
+  const ctx = useAuthCtx();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.stream.relay.stop(ctx!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["stream", "relay"] });
+      toast.success("Relay stopped");
+    },
+    onError: () => toast.error("Failed to stop relay"),
+  });
+}
+
+export function useStopRelayTarget() {
+  const ctx = useAuthCtx();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (platform: string) => api.stream.relay.stopTarget(ctx!, platform),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["stream", "relay"] });
+    },
+    onError: () => toast.error("Failed to stop target"),
   });
 }

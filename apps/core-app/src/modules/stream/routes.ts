@@ -2,8 +2,30 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@shared/db";
+import { env } from "@config/env";
 import { sendError } from "@shared/errors";
 import { paginate, PaginationQuery } from "@shared/pagination";
+
+const SE_URL = env.STREAM_ENGINE_URL;
+
+async function proxyToStreamEngine(
+  method: string,
+  path: string,
+  headers: Record<string, string | undefined>,
+  body?: unknown,
+) {
+  const res = await fetch(`${SE_URL}${path}`, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      "x-internal-service": env.INTERNAL_SERVICE_SECRET,
+    },
+    ...(body !== undefined && { body: JSON.stringify(body) }),
+  });
+  const contentType = res.headers.get("content-type") || "";
+  const data = contentType.includes("application/json") ? await res.json() : await res.text();
+  return { status: res.status, data };
+}
 
 const StartBody = z.object({
   platform: z.string().min(1),
@@ -118,5 +140,83 @@ export default async function streamRoutes(app: FastifyInstance) {
     });
     reply.code(201);
     return event;
+  });
+
+  // ── Rebroadcast relay (proxied to stream-engine) ────────────────────────────
+
+  const RebroadcastStartBody = z.object({
+    sourceUrl: z.string().min(1),
+    platforms: z
+      .array(
+        z.object({
+          platform: z.string().min(1),
+          streamKey: z.string().min(1),
+        }),
+      )
+      .min(1),
+  });
+
+  // POST /api/v1/streams/relay/start — start multistream rebroadcast
+  app.post("/v1/streams/relay/start", async (req, reply) => {
+    const orgId = req.headers["x-org-id"] as string;
+    if (!orgId) return sendError(reply, "UNAUTHORIZED", "Missing org context");
+
+    const body = RebroadcastStartBody.parse(req.body);
+    const { status, data } = await proxyToStreamEngine(
+      "POST",
+      "/v1/relay/start",
+      req.headers as Record<string, string | undefined>,
+      {
+        org_id: orgId,
+        source_url: body.sourceUrl,
+        targets: body.platforms.map((p) => ({
+          platform: p.platform,
+          stream_key: p.streamKey,
+        })),
+      },
+    );
+    return reply.status(status).send(data);
+  });
+
+  // POST /api/v1/streams/relay/stop — stop all rebroadcast for org
+  app.post("/v1/streams/relay/stop", async (req, reply) => {
+    const orgId = req.headers["x-org-id"] as string;
+    if (!orgId) return sendError(reply, "UNAUTHORIZED", "Missing org context");
+
+    const { status, data } = await proxyToStreamEngine(
+      "POST",
+      "/v1/relay/stop",
+      req.headers as Record<string, string | undefined>,
+      { org_id: orgId },
+    );
+    return reply.status(status).send(data);
+  });
+
+  // POST /api/v1/streams/relay/stop-target — stop a single platform
+  app.post("/v1/streams/relay/stop-target", async (req, reply) => {
+    const orgId = req.headers["x-org-id"] as string;
+    if (!orgId) return sendError(reply, "UNAUTHORIZED", "Missing org context");
+
+    const body = z.object({ platform: z.string().min(1) }).parse(req.body);
+    const { status, data } = await proxyToStreamEngine(
+      "POST",
+      "/v1/relay/stop-target",
+      req.headers as Record<string, string | undefined>,
+      { org_id: orgId, platform: body.platform },
+    );
+    return reply.status(status).send(data);
+  });
+
+  // GET /api/v1/streams/relay/status — get rebroadcast status for org
+  app.get("/v1/streams/relay/status", async (req, reply) => {
+    const orgId = req.headers["x-org-id"] as string;
+    if (!orgId) return sendError(reply, "UNAUTHORIZED", "Missing org context");
+
+    const { status, data } = await proxyToStreamEngine(
+      "GET",
+      `/v1/relay/status/${orgId}`,
+      req.headers as Record<string, string | undefined>,
+    );
+    return reply.status(status).send(data);
   });
 }
