@@ -54,6 +54,26 @@ export interface StreamSignal {
   sceneName?: string;
 }
 
+// ── Rebroadcast / multistream relay ─────────────────────────────────────────
+
+export type RelayTargetStatus = "starting" | "active" | "failed" | "stopped";
+
+export interface RelayTarget {
+  platform: string;
+  ingest_url: string;
+  status: RelayTargetStatus;
+  started_at: string | null;
+  error: string | null;
+}
+
+export interface RelayStatus {
+  active: boolean;
+  org_id?: string;
+  source_url?: string;
+  targets: RelayTarget[];
+  created_at?: string;
+}
+
 // Desktop app command types (sent from cloud → desktop via WebSocket)
 export type DesktopCommand =
   | { action: "create_clip"; start: number; duration: number }

@@ -7,6 +7,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/wavestack/stream-engine/internal/api"
+	"github.com/wavestack/stream-engine/internal/relay"
 	"github.com/wavestack/stream-engine/internal/ws"
 )
 
@@ -29,6 +30,11 @@ func main() {
 
 	// REST API routes
 	api.Register(app)
+
+	// Rebroadcast relay manager + routes (mounted at /v1/relay/*)
+	relayMgr := relay.NewManager()
+	v1 := app.Group("/v1", api.InternalOnly)
+	relay.RegisterRoutes(v1, relayMgr)
 
 	// WebSocket hub for desktop app connections
 	hub := ws.NewHub()

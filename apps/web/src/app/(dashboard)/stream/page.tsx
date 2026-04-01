@@ -7,6 +7,10 @@ import {
   useStreamSessions,
   useStartStream,
   useEndStream,
+  useRelayStatus,
+  useStartRelay,
+  useStopRelay,
+  useStopRelayTarget,
 } from "@/lib/hooks/use-stream";
 import {
   isTauri,
@@ -48,7 +52,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Wifi, Eye, UserPlus, Scissors, Loader2, Radio, Plug, PlugZap } from "lucide-react";
+import { Wifi, Eye, UserPlus, Scissors, Loader2, Radio, Plug, PlugZap, X } from "lucide-react";
 import { PlatformIcon } from "@/components/icons/platform-icon";
 import { platformLabel } from "@/lib/colors";
 import { cn } from "@/lib/utils";
@@ -64,6 +68,11 @@ function formatDuration(minutes: number) {
 const RTMP_PORT = 1935;
 const API_PORT = 9997;
 const SE_WS_URL = process.env.NEXT_PUBLIC_STREAM_ENGINE_WS_URL ?? "ws://localhost:3400/ws";
+const CLOUD_RTMP_URL = process.env.NEXT_PUBLIC_RTMP_INGEST_URL ?? "rtmp://localhost:1935/live";
+
+const MULTISTREAM_PLATFORMS = ["twitch", "youtube", "kick"] as const;
+
+type PlatformKey = { platform: string; streamKey: string };
 
 export default function StreamPage() {
   const [goingLive, setGoingLive] = useState(false);
@@ -71,7 +80,12 @@ export default function StreamPage() {
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [scheduleSaving, setScheduleSaving] = useState(false);
   const [streamTitle, setStreamTitle] = useState("");
-  const [streamPlatform, setStreamPlatform] = useState("twitch");
+  const [streamPlatform] = useState("twitch");
+
+  // Multistream: selected platforms + their stream keys
+  const [multistreamOpen, setMultistreamOpen] = useState(false);
+  const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set(["twitch"]));
+  const [streamKeys, setStreamKeys] = useState<Record<string, string>>({});
 
   // Desktop-only state
   const [relayRunning, setRelayRunning] = useState(false);
@@ -91,6 +105,12 @@ export default function StreamPage() {
   const startStreamMut = useStartStream();
   const endStreamMut = useEndStream();
 
+  // Relay / multistream
+  const { data: relayData } = useRelayStatus();
+  const startRelayMut = useStartRelay();
+  const stopRelayMut = useStopRelay();
+  const stopTargetMut = useStopRelayTarget();
+
   const isLive = liveStream != null;
   const liveStreamId = liveStream?.id;
   const streamSessions = sessionsData?.data ?? [];
@@ -105,6 +125,19 @@ export default function StreamPage() {
       if (s) setWsConnected(s.connected);
     });
   }, []);
+
+  function togglePlatform(p: string) {
+    setSelectedPlatforms((prev) => {
+      const next = new Set(prev);
+      if (next.has(p)) next.delete(p);
+      else next.add(p);
+      return next;
+    });
+  }
+
+  const multistreamTargets: PlatformKey[] = [...selectedPlatforms]
+    .filter((p) => streamKeys[p]?.trim())
+    .map((p) => ({ platform: p, streamKey: streamKeys[p] }));
 
   // ── Go Live ───────────────────────────────────────────────────────────────
 
@@ -130,10 +163,23 @@ export default function StreamPage() {
       }
 
       // 3. Create stream session via API
+      const relayedPlatforms = [...selectedPlatforms];
       startStreamMut.mutate(
-        { title: streamTitle || undefined, platform: streamPlatform },
+        { title: streamTitle || undefined, platform: relayedPlatforms[0] ?? streamPlatform },
         {
-          onSuccess: () => toast.success("You are now live!"),
+          onSuccess: () => {
+            toast.success("You are now live!");
+            // 4. Start multistream relay if multiple platforms configured
+            if (multistreamTargets.length > 0) {
+              const sourceUrl = isTauri
+                ? `rtmp://localhost:${RTMP_PORT}/live/wavestack`
+                : `${CLOUD_RTMP_URL}/wavestack`;
+              startRelayMut.mutate({
+                sourceUrl,
+                platforms: multistreamTargets,
+              });
+            }
+          },
           onError: () => toast.info("Live locally — backend unreachable"),
           onSettled: () => setGoingLive(false),
         },
@@ -148,6 +194,11 @@ export default function StreamPage() {
 
   async function handleEndStream() {
     try {
+      // Stop multistream relay
+      if (relayData?.active) {
+        stopRelayMut.mutate();
+      }
+
       // End stream via API
       if (liveStreamId) {
         endStreamMut.mutate(liveStreamId);
@@ -231,7 +282,7 @@ export default function StreamPage() {
             )}
           </div>
 
-          {/* Stream title + platform (pre-live config) */}
+          {/* Stream title + multistream config (pre-live) */}
           {!isLive && (
             <div className="flex items-center gap-2">
               <Input
@@ -240,21 +291,19 @@ export default function StreamPage() {
                 onChange={(e) => setStreamTitle(e.target.value)}
                 className="h-8 w-44 text-sm"
               />
-              <Select value={streamPlatform} onValueChange={setStreamPlatform}>
-                <SelectTrigger className="h-8 w-32 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {["twitch", "youtube", "kick"].map((p) => (
-                    <SelectItem key={p} value={p}>
-                      <span className="flex items-center gap-1.5">
-                        <PlatformIcon platform={p} size={12} branded />
-                        {platformLabel[p] ?? p}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 text-sm"
+                onClick={() => setMultistreamOpen(true)}
+              >
+                {[...selectedPlatforms].map((p) => (
+                  <PlatformIcon key={p} platform={p} size={12} branded />
+                ))}
+                {selectedPlatforms.size === 0
+                  ? "Select Platforms"
+                  : `${selectedPlatforms.size} platform${selectedPlatforms.size > 1 ? "s" : ""}`}
+              </Button>
             </div>
           )}
 
@@ -369,6 +418,80 @@ export default function StreamPage() {
           <StatCard title="New Followers" value={liveStream.newFollowers ?? 0} icon={UserPlus} />
           <StatCard title="Clips Created" value={liveStream.clipsCreated ?? 0} icon={Scissors} />
         </div>
+      )}
+
+      {/* Multistream relay status — shown when relay is active */}
+      {relayData?.active && relayData.targets.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Radio className="h-4 w-4 text-green-500" /> Multistream Relay
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {relayData.targets.map((t) => (
+              <div
+                key={t.platform}
+                className="flex items-center justify-between rounded-lg border p-3"
+              >
+                <div className="flex items-center gap-2">
+                  <PlatformIcon platform={t.platform} size={16} branded />
+                  <span className="text-sm font-medium">
+                    {platformLabel[t.platform] ?? t.platform}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "text-xs",
+                      t.status === "active" && "text-green-500 border-green-500/30",
+                      t.status === "starting" && "text-yellow-500 border-yellow-500/30",
+                      t.status === "failed" && "text-red-500 border-red-500/30",
+                      t.status === "stopped" && "text-muted-foreground",
+                    )}
+                  >
+                    {t.status}
+                  </Badge>
+                  {t.status === "active" && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0"
+                      onClick={() => stopTargetMut.mutate(t.platform)}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+            {relayData.source_url && (
+              <p className="text-xs text-muted-foreground pt-1">
+                Source: <span className="font-mono">{relayData.source_url}</span>
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Cloud RTMP ingest info — shown when NOT using desktop app */}
+      {!isTauri && !isLive && (
+        <Card className="bg-muted/30">
+          <CardContent className="py-4">
+            <p className="text-sm font-medium mb-1">Console / Cloud Ingest</p>
+            <p className="text-xs text-muted-foreground mb-2">
+              Point your PS5, Xbox, or OBS to this RTMP URL. No PC required — WaveStack relays your
+              stream to all selected platforms.
+            </p>
+            <div className="rounded-md bg-background px-3 py-2 text-xs font-mono text-muted-foreground border">
+              RTMP URL: <span className="text-foreground font-semibold">{CLOUD_RTMP_URL}</span>
+              <span className="ml-4">
+                Stream Key: <span className="text-foreground">wavestack</span>
+              </span>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Stream history */}
@@ -538,6 +661,62 @@ export default function StreamPage() {
             >
               {scheduleSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Schedule
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Multistream Platform Setup Dialog */}
+      <Dialog open={multistreamOpen} onOpenChange={setMultistreamOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Multistream Setup</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Select platforms and enter your stream keys. WaveStack will broadcast to all of them
+            simultaneously.
+          </p>
+          <div className="space-y-3 py-2">
+            {MULTISTREAM_PLATFORMS.map((p) => {
+              const active = selectedPlatforms.has(p);
+              return (
+                <div key={p} className="space-y-2">
+                  <button
+                    type="button"
+                    className={cn(
+                      "flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors",
+                      active ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40",
+                    )}
+                    onClick={() => togglePlatform(p)}
+                  >
+                    <PlatformIcon platform={p} size={20} branded />
+                    <span className="flex-1 text-sm font-medium">{platformLabel[p] ?? p}</span>
+                    <span
+                      className={cn(
+                        "h-4 w-4 rounded-full border-2 transition-colors",
+                        active ? "bg-primary border-primary" : "border-muted-foreground/40",
+                      )}
+                    />
+                  </button>
+                  {active && (
+                    <Input
+                      placeholder={`${platformLabel[p] ?? p} stream key`}
+                      value={streamKeys[p] ?? ""}
+                      onChange={(e) => setStreamKeys((prev) => ({ ...prev, [p]: e.target.value }))}
+                      className="h-8 text-xs font-mono ml-8"
+                      type="password"
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMultistreamOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => setMultistreamOpen(false)}>
+              Save ({selectedPlatforms.size} platform{selectedPlatforms.size !== 1 ? "s" : ""})
             </Button>
           </DialogFooter>
         </DialogContent>

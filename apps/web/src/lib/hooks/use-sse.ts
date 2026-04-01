@@ -5,9 +5,8 @@ import { useSession } from "next-auth/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useSSEStore } from "@/lib/store/sse-store";
+import { BASE_URL } from "@/lib/api";
 import type { SSEEvent } from "@/types";
-
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
 // Exponential backoff: 1s, 2s, 4s, 8s, 16s, max 30s
 function getBackoffMs(attempt: number) {

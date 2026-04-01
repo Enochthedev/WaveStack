@@ -697,6 +697,30 @@ services:
   # which routes to Anthropic / OpenAI / Together AI instead.
   # To run locally with a GPU: docker compose --profile ai up
 
+  # ── Cloud RTMP Ingest :1935 (MediaMTX) ────────────────────────────────────────
+  # Receives RTMP from consoles (PS5, Xbox) or OBS. Stream-engine reads from
+  # here and rebroadcasts via FFmpeg to Twitch/YouTube/Kick/etc.
+  mediamtx:
+    image: bluenviron/mediamtx:1.11.3-ffmpeg
+    ports:
+      - "1935:1935" # RTMP ingest
+      - "9997:9997" # API
+      - "8554:8554" # RTSP (optional, for monitoring)
+    environment:
+      - MTX_RTMP=yes
+      - MTX_RTMPADDRESS=:1935
+      - MTX_API=yes
+      - MTX_APIADDRESS=:9997
+      - MTX_LOGLEVEL=warn
+      - MTX_PROTOCOLS=tcp
+    restart: unless-stopped
+    healthcheck:
+      test:
+        ["CMD-SHELL", "wget -qO- http://localhost:9997/v3/paths/list > /dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
   # ── Stream Engine :3400 (Go/Fiber) ────────────────────────────────────────────
   stream-engine:
     build:
@@ -709,8 +733,10 @@ services:
       - REDIS_URL=redis://redis:6379
       - CORE_API_URL=http://core-app:3000
       - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET:-dev-internal-secret}
+      - MEDIAMTX_URL=rtmp://mediamtx:1935/live
     depends_on:
       - redis
+      - mediamtx
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3400/health > /dev/null 2>&1 || exit 1"]

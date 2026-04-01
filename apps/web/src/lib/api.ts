@@ -43,9 +43,10 @@ import type {
   StreamSession,
   PlatformStatus,
   QueueItem,
+  RelayStatus,
 } from "@/types";
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+export const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
 // ─── Error type ──────────────────────────────────────────────────────────────
 
@@ -318,6 +319,28 @@ export const api = {
 
     end: (ctx: AuthContext, id: string): Promise<StreamSession> =>
       apiFetch(`/v1/streams/${id}/end`, ctx, { method: "POST" }),
+
+    relay: {
+      start: (
+        ctx: AuthContext,
+        data: { sourceUrl: string; platforms: { platform: string; streamKey: string }[] },
+      ): Promise<RelayStatus> =>
+        apiFetch("/v1/streams/relay/start", ctx, {
+          method: "POST",
+          body: JSON.stringify(data),
+        }),
+
+      stop: (ctx: AuthContext): Promise<{ ok: boolean }> =>
+        apiFetch("/v1/streams/relay/stop", ctx, { method: "POST" }),
+
+      stopTarget: (ctx: AuthContext, platform: string): Promise<{ ok: boolean }> =>
+        apiFetch("/v1/streams/relay/stop-target", ctx, {
+          method: "POST",
+          body: JSON.stringify({ platform }),
+        }),
+
+      status: (ctx: AuthContext): Promise<RelayStatus> => apiFetch("/v1/streams/relay/status", ctx),
+    },
   },
 
   // ── Platforms ─────────────────────────────────────────────────────────────

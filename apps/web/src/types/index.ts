@@ -136,6 +136,24 @@ export type StreamPlatformRelay = {
   streamKey?: string;
 };
 
+export type RelayTargetStatus = "starting" | "active" | "failed" | "stopped";
+
+export type RelayTarget = {
+  platform: string;
+  ingest_url: string;
+  status: RelayTargetStatus;
+  started_at: string | null;
+  error: string | null;
+};
+
+export type RelayStatus = {
+  active: boolean;
+  org_id?: string;
+  source_url?: string;
+  targets: RelayTarget[];
+  created_at?: string;
+};
+
 export type StreamHealth = {
   bitrate: number;
   droppedFramesPct: number;
