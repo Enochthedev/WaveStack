@@ -38,6 +38,7 @@
     "jwks-rsa": "^3.2.0",
     "pg": "^8.11.3",
     "pino": "latest",
+    "prisma": "latest",
     "zod": "latest"
   },
   "devDependencies": {
@@ -46,7 +47,6 @@
     "@vitest/coverage-v8": "latest",
     "eslint": "^9.0.0",
     "prettier": "^3.0.0",
-    "prisma": "latest",
     "tsc-alias": "^1.8.16",
     "tsx": "latest",
     "typescript": "latest",
