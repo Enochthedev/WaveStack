@@ -51,9 +51,7 @@ export default function LoginPage() {
           W
         </div>
         <h1 className="text-2xl font-bold">Welcome to WaveStack</h1>
-        <p className="text-sm text-muted-foreground">
-          Sign in to your creator dashboard
-        </p>
+        <p className="text-sm text-muted-foreground">Sign in to your creator dashboard</p>
       </div>
 
       <Card>
@@ -67,9 +65,7 @@ export default function LoginPage() {
                 placeholder="creator@example.com"
                 {...register("email")}
               />
-              {errors.email && (
-                <p className="text-xs text-destructive">{errors.email.message}</p>
-              )}
+              {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
@@ -83,9 +79,7 @@ export default function LoginPage() {
                 <p className="text-xs text-destructive">{errors.password.message}</p>
               )}
             </div>
-            {error && (
-              <p className="text-xs text-destructive text-center">{error}</p>
-            )}
+            {error && <p className="text-xs text-destructive text-center">{error}</p>}
             <Button type="submit" className="w-full mt-2" disabled={isSubmitting}>
               {isSubmitting ? "Signing in..." : "Sign In"}
             </Button>
@@ -99,13 +93,25 @@ export default function LoginPage() {
           </div>
 
           <div className="grid grid-cols-3 gap-3">
-            <Button variant="outline" className="w-full" onClick={() => signIn("discord", { callbackUrl: "/dashboard" })}>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => signIn("discord", { callbackUrl: "/dashboard" })}
+            >
               Discord
             </Button>
-            <Button variant="outline" className="w-full" onClick={() => signIn("twitch", { callbackUrl: "/dashboard" })}>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => signIn("twitch", { callbackUrl: "/dashboard" })}
+            >
               Twitch
             </Button>
-            <Button variant="outline" className="w-full" onClick={() => signIn("google", { callbackUrl: "/dashboard" })}>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
+            >
               Google
             </Button>
           </div>
@@ -114,7 +120,7 @@ export default function LoginPage() {
 
       <p className="text-center text-sm text-muted-foreground">
         Don&apos;t have an account?{" "}
-        <Link href="/login" className="text-primary underline">
+        <Link href="/register" className="text-primary underline">
           Sign up
         </Link>
       </p>
