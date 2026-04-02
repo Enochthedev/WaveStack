@@ -2,6 +2,10 @@ import { z } from "zod";
 
 const ALL_ZEROS_KEY = "0000000000000000000000000000000000000000000000000000000000000000";
 
+/** Treat empty strings as undefined so shared vars with "" don't break .url()/.optional() */
+const emptyToUndefined = z.preprocess((v) => (v === "" ? undefined : v), z.string().optional());
+const optionalUrl = z.preprocess((v) => (v === "" ? undefined : v), z.string().url().optional());
+
 const Env = z.object({
   // Server
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
@@ -15,11 +19,11 @@ const Env = z.object({
 
   // Auth
   AUTH_MODE: z.enum(["none", "hs256", "jwks"]).default("none"),
-  AUTH_JWT_SECRET: z.string().optional(),
-  AUTH_JWKS_URL: z.string().url().optional(),
-  AUTH_AUDIENCE: z.string().optional(),
-  AUTH_ISSUER: z.string().optional(),
-  AUTH_KEYS_DIR: z.string().optional(),
+  AUTH_JWT_SECRET: emptyToUndefined,
+  AUTH_JWKS_URL: optionalUrl,
+  AUTH_AUDIENCE: emptyToUndefined,
+  AUTH_ISSUER: emptyToUndefined,
+  AUTH_KEYS_DIR: emptyToUndefined,
   AUTH_KEY_ID: z.string().default("wavestack-1"),
   AUTH_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(900),
   AUTH_REFRESH_TTL_DAYS: z.coerce.number().int().positive().default(30),
@@ -46,16 +50,16 @@ const Env = z.object({
   CLIPPER_URL: z.string().default("http://clipper:8000"),
 
   // Object storage (Cloudflare R2 / S3-compatible)
-  R2_ACCOUNT_ID: z.string().optional(),
-  R2_ACCESS_KEY_ID: z.string().optional(),
-  R2_SECRET_ACCESS_KEY: z.string().optional(),
+  R2_ACCOUNT_ID: emptyToUndefined,
+  R2_ACCESS_KEY_ID: emptyToUndefined,
+  R2_SECRET_ACCESS_KEY: emptyToUndefined,
   R2_BUCKET: z.string().default("creator-platform-dev"),
-  R2_PUBLIC_URL: z.string().url().optional(),
+  R2_PUBLIC_URL: optionalUrl,
 
   // AI
-  ANTHROPIC_API_KEY: z.string().optional(),
-  TOGETHER_API_KEY: z.string().optional(),
-  OPENAI_API_KEY: z.string().optional(),
+  ANTHROPIC_API_KEY: emptyToUndefined,
+  TOGETHER_API_KEY: emptyToUndefined,
+  OPENAI_API_KEY: emptyToUndefined,
 
   // Rate limiting
   RATE_LIMIT_POINTS: z.coerce.number().int().positive().default(100),
@@ -67,7 +71,7 @@ const Env = z.object({
   // OpenTelemetry
   OTEL_ENABLED: z.coerce.boolean().default(false),
   OTEL_SERVICE_NAME: z.string().default("core-app"),
-  OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url().optional(),
+  OTEL_EXPORTER_OTLP_ENDPOINT: optionalUrl,
 });
 
 export type Env = z.infer<typeof Env>;

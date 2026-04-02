@@ -2,6 +2,7 @@
  * Fun Commands
  */
 import { Context } from 'telegraf';
+import { getMessageText } from './types';
 
 export async function handleDice(ctx: Context) {
   const roll = Math.floor(Math.random() * 6) + 1;
@@ -33,7 +34,7 @@ export async function handle8Ball(ctx: Context) {
 }
 
 export async function handleRPS(ctx: Context) {
-  const args = ctx.message?.text?.split(' ').slice(1);
+  const args = getMessageText(ctx)?.split(' ').slice(1);
   if (!args || args.length === 0) {
     return ctx.reply('Usage: /rps <rock|paper|scissors>');
   }
@@ -94,7 +95,7 @@ export async function handlePet(ctx: Context) {
 }
 
 export async function handleHug(ctx: Context) {
-  const args = ctx.message?.text?.split(' ').slice(1);
+  const args = getMessageText(ctx)?.split(' ').slice(1);
   if (!args || args.length === 0) {
     return ctx.reply('🤗 *hugs you*');
   }

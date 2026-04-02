@@ -6,7 +6,7 @@ import { Telegraf, Context } from 'telegraf';
 import { message } from 'telegraf/filters';
 import { config } from 'dotenv';
 import pino from 'pino';
-import { createClient as createRedisClient } from 'redis';
+import { createClient as createRedisClient, type RedisClientType } from 'redis';
 import { CommandHandler } from './commands/handler';
 import { AIPersonality } from './services/ai-personality';
 import { EconomyService } from './services/economy';
@@ -14,7 +14,7 @@ import { EconomyService } from './services/economy';
 config();
 
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
-const redis = createRedisClient({ url: process.env.REDIS_URL });
+const redis = createRedisClient({ url: process.env.REDIS_URL }) as RedisClientType;
 
 // Initialize bot
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN!);

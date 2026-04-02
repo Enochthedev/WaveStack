@@ -3,11 +3,12 @@
  */
 import { Context } from 'telegraf';
 import axios from 'axios';
+import { getMessageText } from './types';
 
 const CLIPPER_API = process.env.CLIPPER_API_URL || 'http://clipper:8000';
 
 export async function handleClip(ctx: Context) {
-  const args = ctx.message?.text?.split(' ').slice(1);
+  const args = getMessageText(ctx)?.split(' ').slice(1);
   const duration = args && args.length > 0 ? parseInt(args[0]) : 30;
 
   if (isNaN(duration) || duration < 5 || duration > 60) {

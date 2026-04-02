@@ -3,12 +3,13 @@
  */
 import { Context } from 'telegraf';
 import axios from 'axios';
+import { getMessageText } from './types';
 
 const WAVESTACK_API = process.env.WAVESTACK_API_URL || 'http://core-app:3000';
 const CLIPPER_API = process.env.CLIPPER_API_URL || 'http://clipper:8000';
 
 export async function handleSetTitle(ctx: Context) {
-  const args = ctx.message?.text?.split(' ').slice(1);
+  const args = getMessageText(ctx)?.split(' ').slice(1);
   if (!args || args.length === 0) {
     return ctx.reply('Usage: /settitle <new title>');
   }
@@ -24,7 +25,7 @@ export async function handleSetTitle(ctx: Context) {
 }
 
 export async function handleSetGame(ctx: Context) {
-  const args = ctx.message?.text?.split(' ').slice(1);
+  const args = getMessageText(ctx)?.split(' ').slice(1);
   if (!args || args.length === 0) {
     return ctx.reply('Usage: /setgame <game name>');
   }
@@ -39,7 +40,7 @@ export async function handleSetGame(ctx: Context) {
 }
 
 export async function handleShoutout(ctx: Context) {
-  const args = ctx.message?.text?.split(' ').slice(1);
+  const args = getMessageText(ctx)?.split(' ').slice(1);
   if (!args || args.length === 0) {
     return ctx.reply('Usage: /so @username');
   }
@@ -52,7 +53,7 @@ export async function handleShoutout(ctx: Context) {
 }
 
 export async function handleMod(ctx: Context) {
-  const args = ctx.message?.text?.split(' ').slice(1);
+  const args = getMessageText(ctx)?.split(' ').slice(1);
   if (!args || args.length === 0) {
     return ctx.reply('Usage: /mod @username');
   }
@@ -63,7 +64,7 @@ export async function handleMod(ctx: Context) {
 }
 
 export async function handleUnmod(ctx: Context) {
-  const args = ctx.message?.text?.split(' ').slice(1);
+  const args = getMessageText(ctx)?.split(' ').slice(1);
   if (!args || args.length === 0) {
     return ctx.reply('Usage: /unmod @username');
   }
@@ -74,7 +75,7 @@ export async function handleUnmod(ctx: Context) {
 }
 
 export async function handleBan(ctx: Context) {
-  const args = ctx.message?.text?.split(' ').slice(1);
+  const args = getMessageText(ctx)?.split(' ').slice(1);
   if (!args || args.length === 0) {
     return ctx.reply('Usage: /ban @username [reason]');
   }
@@ -86,7 +87,7 @@ export async function handleBan(ctx: Context) {
 }
 
 export async function handleTimeout(ctx: Context) {
-  const args = ctx.message?.text?.split(' ').slice(1);
+  const args = getMessageText(ctx)?.split(' ').slice(1);
   if (!args || args.length < 2) {
     return ctx.reply('Usage: /timeout @username <duration_minutes> [reason]');
   }
@@ -109,7 +110,7 @@ export async function handleClear(ctx: Context) {
 }
 
 export async function handleSlowMode(ctx: Context) {
-  const args = ctx.message?.text?.split(' ').slice(1);
+  const args = getMessageText(ctx)?.split(' ').slice(1);
   const duration = args.length > 0 ? parseInt(args[0]) : 5;
 
   if (isNaN(duration)) {
@@ -122,7 +123,7 @@ export async function handleSlowMode(ctx: Context) {
 }
 
 export async function handleFollowersOnly(ctx: Context) {
-  const args = ctx.message?.text?.split(' ').slice(1);
+  const args = getMessageText(ctx)?.split(' ').slice(1);
   const duration = args.length > 0 ? parseInt(args[0]) : 0;
 
   if (duration === 0) {
@@ -143,7 +144,7 @@ export async function handleEmoteOnly(ctx: Context) {
 }
 
 export async function handleAnnounce(ctx: Context) {
-  const args = ctx.message?.text?.split(' ').slice(1);
+  const args = getMessageText(ctx)?.split(' ').slice(1);
   if (!args || args.length === 0) {
     return ctx.reply('Usage: /announce <message>');
   }
