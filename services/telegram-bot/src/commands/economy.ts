@@ -3,6 +3,7 @@
  */
 import { Context } from 'telegraf';
 import { createClient } from 'redis';
+import { getMessageText } from './types';
 
 const redis = createClient({ url: process.env.REDIS_URL });
 
@@ -50,7 +51,7 @@ export async function handleLeaderboard(ctx: Context) {
 }
 
 export async function handleGive(ctx: Context) {
-  const args = ctx.message?.text?.split(' ').slice(1);
+  const args = getMessageText(ctx)?.split(' ').slice(1);
   if (!args || args.length < 2) {
     return ctx.reply('Usage: /give @user <amount>');
   }
@@ -75,7 +76,7 @@ export async function handleGive(ctx: Context) {
 }
 
 export async function handleGamble(ctx: Context) {
-  const args = ctx.message?.text?.split(' ').slice(1);
+  const args = getMessageText(ctx)?.split(' ').slice(1);
   if (!args || args.length === 0) {
     return ctx.reply('Usage: /gamble <amount>');
   }

@@ -3,7 +3,7 @@
  * Routes commands to appropriate handlers
  */
 import { Telegraf, Context } from 'telegraf';
-import { Logger } from 'pino';
+import type { Logger } from 'pino';
 import { RedisClientType } from 'redis';
 
 // Import all command modules
@@ -18,7 +18,7 @@ export class CommandHandler {
   private bot: Telegraf;
   private redis: RedisClientType;
   private logger: Logger;
-  private commands: Map<string, (ctx: Context) => Promise<void>>;
+  private commands: Map<string, (ctx: Context) => Promise<unknown>>;
 
   constructor(bot: Telegraf, redis: RedisClientType, logger: Logger) {
     this.bot = bot;
