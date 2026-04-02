@@ -35,4 +35,4 @@ COPY --from=build /app/prisma.config.ts ./
 COPY package.json ./
 USER node
 EXPOSE 3000
-CMD ["sh", "-c", "echo '[deploy] Running migrations...' && npx prisma migrate deploy && echo '[deploy] Starting server...' && exec node dist/bootstrap.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy && exec node dist/server.js"]

@@ -10,8 +10,6 @@ import { getKeypair } from "@modules/auth/keys";
 import { env } from "@config/env";
 import { prisma } from "@shared/db";
 
-console.log("[startup] All modules loaded, configuring Fastify...");
-
 const app = Fastify({
   logger: loggerConfig,
   bodyLimit: 1_048_576, // 1 MB max request body
@@ -152,15 +150,9 @@ process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
 
 // ── Start ────────────────────────────────────────────────────────────────────
-console.log(`[startup] Starting Fastify on 0.0.0.0:${env.PORT}...`);
-app
-  .listen({ port: env.PORT, host: "0.0.0.0" })
-  .then(() => {
-    console.log(`[startup] Server listening on 0.0.0.0:${env.PORT}`);
-  })
-  .catch((err) => {
-    console.error("[startup] FATAL: Server failed to start:", err);
-    process.exit(1);
-  });
+app.listen({ port: env.PORT, host: "0.0.0.0" }).catch((err) => {
+  app.log.error(err);
+  process.exit(1);
+});
 
 export type AppInstance = typeof app;
