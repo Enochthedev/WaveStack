@@ -6,7 +6,7 @@
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "start": "node dist/server.js",
+    "start": "node dist/bootstrap.js",
     "build": "prisma generate && tsc && tsc-alias",
     "migrate": "prisma migrate deploy",
     "lint": "eslint src",
