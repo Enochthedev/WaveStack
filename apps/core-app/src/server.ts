@@ -1,31 +1,16 @@
-// ── Global crash handlers (must be first) ───────────────────────────────────
-process.on("uncaughtException", (err) => {
-  console.error("[startup] FATAL uncaughtException:", err);
-  process.exit(1);
-});
-process.on("unhandledRejection", (reason) => {
-  console.error("[startup] FATAL unhandledRejection:", reason);
-  process.exit(1);
-});
-
-console.log("[startup] Loading tracer...");
 import "@shared/tracer"; // must be first — patches libs before they load
-
-console.log("[startup] Loading modules...");
 import Fastify, { type FastifyError } from "fastify";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import { loggerConfig } from "@shared/logger";
 import apiRoutes from "@routes/api";
-
-console.log("[startup] Loading publisher worker...");
 import "@modules/publisher/worker"; // boot worker side-effects
-
-console.log("[startup] Loading auth & config...");
 import { getKeypair } from "@modules/auth/keys";
 import { env } from "@config/env";
 import { prisma } from "@shared/db";
+
+console.log("[startup] All modules loaded, configuring Fastify...");
 
 const app = Fastify({
   logger: loggerConfig,

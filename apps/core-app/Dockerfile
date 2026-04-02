@@ -35,4 +35,4 @@ COPY --from=build /app/prisma.config.ts ./
 COPY package.json ./
 USER node
 EXPOSE 3000
-CMD ["node", "dist/server.js"]
+CMD ["node", "dist/bootstrap.js"]
