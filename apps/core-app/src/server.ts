@@ -1,11 +1,28 @@
+// ── Global crash handlers (must be first) ───────────────────────────────────
+process.on("uncaughtException", (err) => {
+  console.error("[startup] FATAL uncaughtException:", err);
+  process.exit(1);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("[startup] FATAL unhandledRejection:", reason);
+  process.exit(1);
+});
+
+console.log("[startup] Loading tracer...");
 import "@shared/tracer"; // must be first — patches libs before they load
+
+console.log("[startup] Loading modules...");
 import Fastify, { type FastifyError } from "fastify";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import { loggerConfig } from "@shared/logger";
 import apiRoutes from "@routes/api";
+
+console.log("[startup] Loading publisher worker...");
 import "@modules/publisher/worker"; // boot worker side-effects
+
+console.log("[startup] Loading auth & config...");
 import { getKeypair } from "@modules/auth/keys";
 import { env } from "@config/env";
 import { prisma } from "@shared/db";
@@ -150,9 +167,15 @@ process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
 
 // ── Start ────────────────────────────────────────────────────────────────────
-app.listen({ port: env.PORT, host: "0.0.0.0" }).catch((err) => {
-  app.log.error(err);
-  process.exit(1);
-});
+console.log(`[startup] Starting Fastify on 0.0.0.0:${env.PORT}...`);
+app
+  .listen({ port: env.PORT, host: "0.0.0.0" })
+  .then(() => {
+    console.log(`[startup] Server listening on 0.0.0.0:${env.PORT}`);
+  })
+  .catch((err) => {
+    console.error("[startup] FATAL: Server failed to start:", err);
+    process.exit(1);
+  });
 
 export type AppInstance = typeof app;
