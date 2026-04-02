@@ -75,9 +75,29 @@ const Env = z.object({
 });
 
 export type Env = z.infer<typeof Env>;
-export const env = Env.parse(process.env);
+
+console.log("[startup] Parsing environment variables...");
+let env: Env;
+try {
+  env = Env.parse(process.env);
+  console.log(
+    `[startup] Env OK — PORT=${env.PORT}, NODE_ENV=${env.NODE_ENV}, AUTH_MODE=${env.AUTH_MODE}`,
+  );
+} catch (err) {
+  console.error("[startup] FATAL: Environment validation failed:");
+  if (err instanceof z.ZodError) {
+    for (const issue of err.issues) {
+      console.error(`  - ${issue.path.join(".")}: ${issue.message}`);
+    }
+  } else {
+    console.error(err);
+  }
+  process.exit(1);
+}
+export { env };
 
 // ── Production safety guards ────────────────────────────────────────────────
+console.log("[startup] Running production safety guards...");
 if (env.NODE_ENV === "production") {
   const fatal: string[] = [];
 
