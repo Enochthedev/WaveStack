@@ -21,8 +21,8 @@ importers:
   apps/core-app:
     dependencies:
       '@fastify/cors':
-        specifier: ^8.4.2
-        version: 8.5.0
+        specifier: ^11.0.0
+        version: 11.2.0
       '@fastify/helmet':
         specifier: ^13.0.2
         version: 13.0.2
@@ -80,6 +80,9 @@ importers:
       pino:
         specifier: latest
         version: 10.3.1
+      prisma:
+        specifier: latest
+        version: 7.6.0(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@6.0.2)
       zod:
         specifier: latest
         version: 4.3.6
@@ -99,9 +102,6 @@ importers:
       prettier:
         specifier: ^3.0.0
         version: 3.8.1
-      prisma:
-        specifier: latest
-        version: 7.6.0(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@6.0.2)
       tsc-alias:
         specifier: ^1.8.16
         version: 1.8.16
@@ -2083,6 +2083,9 @@ packages:
 
   '@fastify/cors@10.1.0':
     resolution: {integrity: sha512-MZyBCBJtII60CU9Xme/iE4aEy8G7QpzGR8zkdXZkDFt7ElEMachbE61tfhAG/bvSaULlqlf0huMT12T7iqEmdQ==}
+
+  '@fastify/cors@11.2.0':
+    resolution: {integrity: sha512-LbLHBuSAdGdSFZYTLVA3+Ch2t+sA6nq3Ejc6XLAKiQ6ViS2qFnvicpj0htsx03FyYeLs04HfRNBsz/a8SvbcUw==}
 
   '@fastify/cors@8.5.0':
     resolution: {integrity: sha512-/oZ1QSb02XjP0IK1U0IXktEsw/dUBTxJOW7IpIeO8c/tNalw/KjoNSJv1Sf6eqoBPO+TDGkifq6ynFK3v68HFQ==}
@@ -13176,6 +13179,11 @@ snapshots:
     dependencies:
       fastify-plugin: 5.1.0
       mnemonist: 0.40.0
+
+  '@fastify/cors@11.2.0':
+    dependencies:
+      fastify-plugin: 5.1.0
+      toad-cache: 3.7.0
 
   '@fastify/cors@8.5.0':
     dependencies:
