@@ -7,6 +7,12 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    THEME TOKENS
    All design tokens consumed by Tailwind and our custom components.
+
+   Brand palette:
+     Electric Mint  #5CE8A5 — oklch(0.84 0.15 158)
+     Forest Dark    #0F1A14 — oklch(0.13 0.015 155)
+     Elevated Dark  #182822 — oklch(0.18 0.012 155)
+
    Organized by category: colors → radii → icons → animations.
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -14,8 +20,9 @@
   /* ── Core color mappings (Tailwind ↔ CSS variables) ────────────────── */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-satoshi);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-dream-kudos);
 
   /* Sidebar */
   --color-sidebar-ring: var(--sidebar-ring);
@@ -71,13 +78,6 @@
   --radius-4xl: calc(var(--radius) + 16px);
 
   /* ── Icon sizing tokens ────────────────────────────────────────────── */
-  /* Standardized icon sizes used by the <Icon> component.
-     Always prefer these over ad-hoc pixel values.
-     xs  = inline / badge-level
-     sm  = tight UI (sidebar items, table cells)
-     md  = default (buttons, form labels)
-     lg  = section headers, empty-state illustrations
-     xl  = hero / splash / large feature callouts               */
   --icon-size-xs: 0.875rem;   /* 14px */
   --icon-size-sm: 1rem;       /* 16px */
   --icon-size-md: 1.25rem;    /* 20px */
@@ -86,7 +86,6 @@
   --icon-size-2xl: 2.5rem;    /* 40px — avatars, onboarding */
 
   /* ── Icon stroke-width tokens ──────────────────────────────────────── */
-  /* Lucide icons accept a strokeWidth prop; these keep it consistent.    */
   --icon-stroke-thin: 1.5;
   --icon-stroke-default: 2;
   --icon-stroke-bold: 2.5;
@@ -122,102 +121,98 @@
 
 /* ═══════════════════════════════════════════════════════════════════════════
    LIGHT MODE — :root
-   Default theme for users who haven't toggled dark mode.
+   Mint Mist on white surfaces, Carbon Gray text.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 :root {
-  --radius: 0.5rem;
+  --radius: 0.625rem;
 
   /* ── Surfaces ──────────────────────────────────────────────────────── */
-  --background: oklch(0.99 0 0);
-  --foreground: oklch(0.145 0 0);
+  --background: oklch(0.98 0.005 148);
+  --foreground: oklch(0.23 0 0);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.23 0 0);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
+  --popover-foreground: oklch(0.23 0 0);
 
-  /* ── Brand orange — vibrant but readable ───────────────────────────── */
-  --primary: oklch(0.58 0.22 42);
+  /* ── Brand mint — electric mint for button/CTA contrast ──────────────── */
+  --primary: oklch(0.40 0.18 155);
   --primary-foreground: oklch(0.99 0 0);
 
-  /* ── Neutral variants ──────────────────────────────────────────────── */
-  --secondary: oklch(0.96 0.005 60);
-  --secondary-foreground: oklch(0.25 0 0);
-  --muted: oklch(0.96 0.003 60);
-  --muted-foreground: oklch(0.52 0 0);
-  --accent: oklch(0.95 0.01 55);
-  --accent-foreground: oklch(0.25 0 0);
+  /* ── Neutral variants — mint-tinted grays ──────────────────────────── */
+  --secondary: oklch(0.94 0.01 148);
+  --secondary-foreground: oklch(0.23 0 0);
+  --muted: oklch(0.95 0.008 148);
+  --muted-foreground: oklch(0.50 0 0);
+  --accent: oklch(0.92 0.015 148);
+  --accent-foreground: oklch(0.23 0 0);
 
   /* ── Feedback / destructive ────────────────────────────────────────── */
   --destructive: oklch(0.577 0.245 27.325);
 
   /* ── Semantic status colors ────────────────────────────────────────── */
-  /* Use these for badges, toasts, status dots, icon tints, etc.         */
-  --success:            oklch(0.55 0.18 150);     /* green  */
+  --success:            oklch(0.55 0.18 150);
   --success-foreground: oklch(0.99 0 0);
-  --warning:            oklch(0.75 0.18 75);      /* amber  */
+  --warning:            oklch(0.75 0.18 75);
   --warning-foreground: oklch(0.2 0 0);
-  --info:               oklch(0.6 0.16 245);      /* blue   */
+  --info:               oklch(0.6 0.16 245);
   --info-foreground:    oklch(0.99 0 0);
 
   /* ── Borders & inputs ──────────────────────────────────────────────── */
-  --border: oklch(0.91 0.003 60);
-  --input: oklch(0.91 0.003 60);
-  --ring: oklch(0.58 0.22 42);
+  --border: oklch(0.90 0.008 148);
+  --input: oklch(0.90 0.008 148);
+  --ring: oklch(0.40 0.18 155);
 
   /* ── Interactive state tokens ──────────────────────────────────────── */
-  /* Multiply these with a base color to derive hover/active/focus tints.
-     Example in Tailwind: bg-primary hover:bg-primary/var(--state-hover)
-     The Icon component uses these internally for state styles.           */
-  --state-hover-opacity:    0.85;    /* slightly dimmed on hover     */
-  --state-active-opacity:   0.7;     /* pressed / active feedback    */
-  --state-disabled-opacity: 0.38;    /* WCAG-friendly disabled look  */
-  --state-focus-ring-width: 3px;     /* consistent focus ring width  */
-  --state-focus-ring-offset: 2px;    /* offset from element edge     */
+  --state-hover-opacity:    0.85;
+  --state-active-opacity:   0.7;
+  --state-disabled-opacity: 0.38;
+  --state-focus-ring-width: 3px;
+  --state-focus-ring-offset: 2px;
 
-  /* ── Charts — orange palette with complementary hues ───────────────── */
-  --chart-1: oklch(0.638 0.222 42); /* orange  (brand) */
-  --chart-2: oklch(0.68 0.15 190); /* teal    */
-  --chart-3: oklch(0.6 0.19 260); /* blue    */
-  --chart-4: oklch(0.78 0.16 100); /* lime    */
-  --chart-5: oklch(0.65 0.22 15); /* red     */
+  /* ── Charts — mint palette with complementary hues ─────────────────── */
+  --chart-1: oklch(0.65 0.10 148);  /* mint   (brand) */
+  --chart-2: oklch(0.60 0.12 195);  /* teal   */
+  --chart-3: oklch(0.58 0.14 260);  /* blue   */
+  --chart-4: oklch(0.72 0.14 95);   /* lime   */
+  --chart-5: oklch(0.62 0.18 25);   /* coral  */
 
-  /* ── Sidebar — very slightly warm white ────────────────────────────── */
-  --sidebar: oklch(0.975 0.004 60);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.58 0.22 42);
+  /* ── Sidebar — very slight mint tint ───────────────────────────────── */
+  --sidebar: oklch(0.97 0.006 148);
+  --sidebar-foreground: oklch(0.23 0 0);
+  --sidebar-primary: oklch(0.40 0.18 155);
   --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.935 0.008 60);
-  --sidebar-accent-foreground: oklch(0.25 0 0);
-  --sidebar-border: oklch(0.91 0.003 60);
-  --sidebar-ring: oklch(0.58 0.22 42);
+  --sidebar-accent: oklch(0.93 0.012 148);
+  --sidebar-accent-foreground: oklch(0.23 0 0);
+  --sidebar-border: oklch(0.90 0.008 148);
+  --sidebar-ring: oklch(0.40 0.18 155);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    DARK MODE — .dark
-   Overrides for dark theme; values are tuned for contrast on dark surfaces.
+   Carbon Gray surfaces, Mint Mist accents.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .dark {
-  /* ── Surfaces ──────────────────────────────────────────────────────── */
-  --background: oklch(0.13 0.005 50);
-  --foreground: oklch(0.96 0 0);
-  --card: oklch(0.18 0.006 50);
-  --card-foreground: oklch(0.96 0 0);
-  --popover: oklch(0.18 0.006 50);
-  --popover-foreground: oklch(0.96 0 0);
+  /* ── Surfaces — Forest Dark base (brand-tinted, not flat gray) ──── */
+  --background: oklch(0.13 0.015 155);
+  --foreground: oklch(0.93 0.01 155);
+  --card: oklch(0.18 0.012 155);
+  --card-foreground: oklch(0.93 0.01 155);
+  --popover: oklch(0.18 0.012 155);
+  --popover-foreground: oklch(0.93 0.01 155);
 
-  /* ── Brand orange — slightly lighter for dark backgrounds ──────────── */
-  --primary: oklch(0.74 0.2 48);
-  --primary-foreground: oklch(0.13 0.005 50);
+  /* ── Brand mint — Electric Mint on dark ────────────────────────────── */
+  --primary: oklch(0.82 0.16 155);
+  --primary-foreground: oklch(0.13 0.015 155);
 
-  /* ── Neutral variants ──────────────────────────────────────────────── */
-  --secondary: oklch(0.24 0.008 50);
-  --secondary-foreground: oklch(0.96 0 0);
-  --muted: oklch(0.24 0.008 50);
-  --muted-foreground: oklch(0.62 0 0);
-  --accent: oklch(0.26 0.01 52);
-  --accent-foreground: oklch(0.96 0 0);
+  /* ── Neutral variants — mint-tinted darks ──────────────────────────── */
+  --secondary: oklch(0.22 0.012 155);
+  --secondary-foreground: oklch(0.93 0.01 155);
+  --muted: oklch(0.22 0.01 155);
+  --muted-foreground: oklch(0.58 0.02 155);
+  --accent: oklch(0.25 0.015 155);
+  --accent-foreground: oklch(0.93 0.01 155);
 
   /* ── Feedback / destructive ────────────────────────────────────────── */
   --destructive: oklch(0.704 0.191 22.216);
@@ -231,31 +226,31 @@
   --info-foreground:    oklch(0.13 0 0);
 
   /* ── Borders & inputs ──────────────────────────────────────────────── */
-  --border: oklch(1 0 0 / 9%);
+  --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.74 0.2 48);
+  --ring: oklch(0.82 0.16 155);
 
   /* ── Interactive state tokens (dark overrides) ─────────────────────── */
   --state-hover-opacity:    0.8;
   --state-active-opacity:   0.65;
   --state-disabled-opacity: 0.3;
 
-  /* ── Charts — slightly adapted for dark ────────────────────────────── */
-  --chart-1: oklch(0.74 0.2 48); /* orange  (brand) */
-  --chart-2: oklch(0.72 0.16 190); /* teal    */
-  --chart-3: oklch(0.65 0.18 260); /* blue    */
-  --chart-4: oklch(0.8 0.16 100); /* lime    */
-  --chart-5: oklch(0.68 0.22 15); /* red     */
+  /* ── Charts — lighter mint palette for dark backgrounds ────────────── */
+  --chart-1: oklch(0.78 0.06 148);  /* mint   (brand) */
+  --chart-2: oklch(0.68 0.12 195);  /* teal   */
+  --chart-3: oklch(0.63 0.16 260);  /* blue   */
+  --chart-4: oklch(0.78 0.14 95);   /* lime   */
+  --chart-5: oklch(0.66 0.18 25);   /* coral  */
 
-  /* ── Sidebar — slightly warmer dark than the background ────────────── */
-  --sidebar: oklch(0.17 0.007 52);
-  --sidebar-foreground: oklch(0.96 0 0);
-  --sidebar-primary: oklch(0.74 0.2 48);
-  --sidebar-primary-foreground: oklch(0.13 0.005 50);
-  --sidebar-accent: oklch(0.23 0.01 52);
-  --sidebar-accent-foreground: oklch(0.96 0 0);
-  --sidebar-border: oklch(1 0 0 / 9%);
-  --sidebar-ring: oklch(0.74 0.2 48);
+  /* ── Sidebar — slightly lifted Forest Dark ──────────────────────────── */
+  --sidebar: oklch(0.16 0.012 155);
+  --sidebar-foreground: oklch(0.93 0.01 155);
+  --sidebar-primary: oklch(0.82 0.16 155);
+  --sidebar-primary-foreground: oklch(0.13 0.015 155);
+  --sidebar-accent: oklch(0.22 0.015 155);
+  --sidebar-accent-foreground: oklch(0.93 0.01 155);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.82 0.16 155);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
