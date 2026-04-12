@@ -35,7 +35,7 @@ services:
   chromadb:
     image: chromadb/chroma:latest
     ports:
-      - "8000:8000"
+      - "8001:8000"
     volumes:
       - chroma_data:/chroma/chroma
     environment:
@@ -50,147 +50,46 @@ services:
   #   volumes: [ollama_data:/root/.ollama]
   #   restart: unless-stopped
 
-  # ML Training Service (Python/FastAPI)
-  ml-training:
+  # Publisher — unified social publishing (Python/FastAPI)
+  publisher:
     build:
-      context: ./services/ml-training
-      dockerfile: Dockerfile
-    ports:
-      - "8300:8300"
-    environment:
-      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
-      - REDIS_URL=redis://redis:6379
-      - HUGGINGFACE_TOKEN=${HUGGINGFACE_TOKEN}
-      - DEFAULT_BASE_MODEL=${ML_BASE_MODEL:-meta-llama/Llama-2-7b-chat-hf}
-    volumes:
-      - ./services/ml-training:/app
-      - ml_models:/app/models
-    depends_on:
-      - postgres
-      - redis
-    # Uncomment for GPU support (requires nvidia-container-toolkit)
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
-    restart: unless-stopped
-
-  # Thumbnail Generator (Python/FastAPI)
-  thumbnail-generator:
-    build:
-      context: ./services/thumbnail-generator
-      dockerfile: Dockerfile
-    ports:
-      - "8400:8400"
-    environment:
-      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
-      - REDIS_URL=redis://redis:6379
-      - IMAGE_PROVIDER=${THUMBNAIL_IMAGE_PROVIDER:-local}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - STABILITY_API_KEY=${STABILITY_API_KEY}
-      - AI_PERSONALITY_URL=http://ai-personality:8200
-      - USE_AI_PROMPTS=true
-    volumes:
-      - ./services/thumbnail-generator:/app
-      - thumbnail_data:/app/thumbnails
-      - thumbnail_models:/app/models
-    depends_on:
-      - redis
-      - ai-personality
-    # Uncomment for GPU support (recommended for local Stable Diffusion)
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
-    restart: unless-stopped
-
-  # YouTube Publisher (Python/FastAPI)
-  youtube-publisher:
-    build:
-      context: ./services/youtube-publisher
-      dockerfile: Dockerfile
-    ports:
-      - "8500:8500"
-    environment:
-      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
-      - REDIS_URL=redis://redis:6379
-      - YOUTUBE_CLIENT_ID=${YOUTUBE_CLIENT_ID}
-      - YOUTUBE_CLIENT_SECRET=${YOUTUBE_CLIENT_SECRET}
-      - THUMBNAIL_GENERATOR_URL=http://thumbnail-generator:8400
-      - AI_PERSONALITY_URL=http://ai-personality:8200
-      - AUTO_GENERATE_THUMBNAILS=true
-      - USE_AI_DESCRIPTIONS=true
-      - USE_AI_TAGS=true
-    volumes:
-      - ./services/youtube-publisher:/app
-      - youtube_credentials:/app/credentials
-      - youtube_uploads:/app/uploads
-    depends_on:
-      - redis
-      - thumbnail-generator
-      - ai-personality
-    restart: unless-stopped
-
-  # Social Publisher (Python/FastAPI)
-  social-publisher:
-    build:
-      context: ./services/social-publisher
+      context: ./services/publisher
       dockerfile: Dockerfile
     ports:
       - "8600:8600"
     environment:
       - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
       - REDIS_URL=redis://redis:6379
+      # Social platforms
       - INSTAGRAM_USERNAME=${INSTAGRAM_USERNAME}
       - INSTAGRAM_PASSWORD=${INSTAGRAM_PASSWORD}
       - TIKTOK_SESSION_ID=${TIKTOK_SESSION_ID}
       - FACEBOOK_ACCESS_TOKEN=${FACEBOOK_ACCESS_TOKEN}
       - FACEBOOK_PAGE_ID=${FACEBOOK_PAGE_ID}
       - LINKEDIN_ACCESS_TOKEN=${LINKEDIN_ACCESS_TOKEN}
-      - AI_PERSONALITY_URL=http://ai-personality:8200
-      - THUMBNAIL_GENERATOR_URL=http://thumbnail-generator:8400
+      # Twitter/X
+      - TWITTER_API_KEY=${TWITTER_API_KEY}
+      - TWITTER_API_SECRET=${TWITTER_API_SECRET}
+      - TWITTER_ACCESS_TOKEN=${TWITTER_ACCESS_TOKEN}
+      - TWITTER_ACCESS_SECRET=${TWITTER_ACCESS_SECRET}
+      - TWITTER_BEARER_TOKEN=${TWITTER_BEARER_TOKEN}
+      # YouTube
+      - YOUTUBE_CLIENT_ID=${YOUTUBE_CLIENT_ID}
+      - YOUTUBE_CLIENT_SECRET=${YOUTUBE_CLIENT_SECRET}
+      # AI integration
+      - AI_PERSONALITY_URL=http://ai-core:8200
+      - THUMBNAIL_GENERATOR_URL=http://clipper:8000
       - USE_AI_CAPTIONS=true
       - USE_AI_HASHTAGS=true
     volumes:
-      - ./services/social-publisher:/app
+      - ./services/publisher:/app
       - social_sessions:/app/sessions
       - social_uploads:/app/uploads
+      - youtube_credentials:/app/credentials
+      - youtube_uploads:/app/youtube-uploads
     depends_on:
       - redis
-      - ai-personality
-      - thumbnail-generator
-    restart: unless-stopped
-
-  # Auto-Moderation Service (Python/FastAPI)
-  auto-mod:
-    build:
-      context: ./services/auto-mod
-      dockerfile: Dockerfile
-    ports:
-      - "8700:8700"
-    environment:
-      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
-      - REDIS_URL=redis://redis:6379
-      - AI_PERSONALITY_URL=http://ai-personality:8200
-      - USE_AI_MODERATION=true
-      - TOXICITY_THRESHOLD=${TOXICITY_THRESHOLD:-0.7}
-      - SPAM_THRESHOLD=${SPAM_THRESHOLD:-0.6}
-      - AUTO_DELETE=${AUTO_DELETE:-true}
-      - AUTO_TIMEOUT=${AUTO_TIMEOUT:-false}
-      - AUTO_BAN=${AUTO_BAN:-false}
-      - VIOLATIONS_FOR_BAN=${VIOLATIONS_FOR_BAN:-5}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-    volumes:
-      - ./services/auto-mod:/app
-    depends_on:
-      - redis
-      - ai-personality
+      - ai-core
     restart: unless-stopped
 
   # Core App (Fastify/TypeScript)
@@ -213,7 +112,7 @@ services:
       - redis
     restart: unless-stopped
 
-  # Clipper Service (Python/FastAPI)
+  # Clipper Service — clip + thumbnail generation (Python/FastAPI)
   clipper:
     build:
       context: ./services/clipper
@@ -223,18 +122,26 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379
       - WAVESTACK_API_URL=http://core-app:3000
+      - AI_PERSONALITY_URL=http://ai-core:8200
+      - IMAGE_PROVIDER=${THUMBNAIL_IMAGE_PROVIDER:-local}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - STABILITY_API_KEY=${STABILITY_API_KEY}
+      - USE_AI_PROMPTS=true
     volumes:
       - ./services/clipper:/app
       - clipper_cache:/tmp/clips
+      - thumbnail_data:/app/thumbnails
+      - thumbnail_models:/app/models
     depends_on:
       - redis
       - core-app
+      - ai-core
     restart: unless-stopped
 
-  # AI Personality Service (Python/FastAPI)
-  ai-personality:
+  # AI Core — unified AI service: personality + knowledge + models + agents (Python/FastAPI)
+  ai-core:
     build:
-      context: ./services/ai-personality
+      context: ./services/ai-core
       dockerfile: Dockerfile
     ports:
       - "8200:8200"
@@ -243,156 +150,68 @@ services:
       - REDIS_URL=redis://redis:6379
       - CHROMA_HOST=chromadb
       - CHROMA_PORT=8000
+      # LLM providers
       - AI_PROVIDER=${AI_PROVIDER:-anthropic}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - TOGETHER_API_KEY=${TOGETHER_API_KEY}
       - OLLAMA_BASE_URL=${OLLAMA_INTERNAL_URL:-http://ollama:11434}
       - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2}
-      - ML_TRAINING_URL=http://ml-training:8300
+      # Personality
       - PERSONALITY_TEMPERATURE=0.8
       - PERSONALITY_MAX_TOKENS=500
       - SENTIMENT_FILTERING=true
       - CONTROVERSY_AVOIDANCE=true
+      # Agent orchestration
+      - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET:-dev-internal-secret}
+      - APPROVAL_TIMEOUT_HOURS=4
     volumes:
-      - ./services/ai-personality:/app
+      - ./services/ai-core:/app
     depends_on:
       - postgres
       - redis
       - chromadb
-      - ml-training
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8200/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-  # Discord Bot (TypeScript)
-  discord-bot:
+  # Community Bot — Discord + Twitch + Telegram (TypeScript)
+  community-bot:
     build:
-      context: ./services/discord-bot
+      context: ./services/community-bot
       dockerfile: Dockerfile
     environment:
+      # Discord
       - DISCORD_TOKEN=${DISCORD_TOKEN}
       - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
-      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
-      - REDIS_URL=redis://redis:6379
-      - WAVESTACK_API_URL=http://core-app:3000
-      - AI_PERSONALITY_URL=http://ai-personality:8200
-      - USE_AI_MODERATION=${USE_AI_MODERATION:-true}
-      - AUTO_MOD_URL=http://auto-mod:8700
-    volumes:
-      - ./services/discord-bot:/app
-      - /app/node_modules
-    depends_on:
-      - postgres
-      - redis
-      - core-app
-      - ai-personality
-      - auto-mod
-    restart: unless-stopped
-
-  # Twitch Bot (TypeScript)
-  twitch-bot:
-    build:
-      context: ./services/twitch-bot
-      dockerfile: Dockerfile
-    environment:
+      # Twitch
       - TWITCH_BOT_USERNAME=${TWITCH_BOT_USERNAME}
       - TWITCH_OAUTH_TOKEN=${TWITCH_OAUTH_TOKEN}
       - TWITCH_CLIENT_ID=${TWITCH_CLIENT_ID}
       - TWITCH_CLIENT_SECRET=${TWITCH_CLIENT_SECRET}
+      # Telegram
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      # Shared
       - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
       - REDIS_URL=redis://redis:6379
       - WAVESTACK_API_URL=http://core-app:3000
-      - AI_PERSONALITY_URL=http://ai-personality:8200
+      - AI_PERSONALITY_URL=http://ai-core:8200
+      # Moderation (auto-mod logic now lives in ai-core)
       - USE_AI_MODERATION=${USE_AI_MODERATION:-true}
-      - AUTO_MOD_URL=http://auto-mod:8700
+      - AUTO_MOD_URL=http://ai-core:8200
+      - TOXICITY_THRESHOLD=${TOXICITY_THRESHOLD:-0.7}
+      - SPAM_THRESHOLD=${SPAM_THRESHOLD:-0.6}
     volumes:
-      - ./services/twitch-bot:/app
+      - ./services/community-bot:/app
       - /app/node_modules
     depends_on:
       - postgres
       - redis
       - core-app
-      - ai-personality
-      - auto-mod
-    restart: unless-stopped
-
-  # Telegram Bot (Python - more mature library)
-  telegram-bot:
-    build:
-      context: ./services/telegram-bot-py
-      dockerfile: Dockerfile
-    environment:
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - REDIS_URL=redis://redis:6379
-      - AI_PERSONALITY_URL=http://ai-personality:8200
-    depends_on:
-      - redis
-      - ai-personality
-    restart: unless-stopped
-
-  # WhatsApp Bot (TypeScript)
-  whatsapp-bot:
-    build:
-      context: ./services/whatsapp-bot
-      dockerfile: Dockerfile
-    environment:
-      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
-      - REDIS_URL=redis://redis:6379
-      - AI_PERSONALITY_URL=http://ai-personality:8200
-      - CREATOR_USER_ID=${CREATOR_USER_ID:-default_user}
-      - AUTO_RESPOND=${WHATSAPP_AUTO_RESPOND:-false}
-      - RESPOND_TO_GROUPS=${WHATSAPP_RESPOND_TO_GROUPS:-true}
-    volumes:
-      - ./services/whatsapp-bot:/app
-      - /app/node_modules
-      - whatsapp_auth:/app/.wwebjs_auth
-    depends_on:
-      - postgres
-      - redis
-      - ai-personality
-    restart: unless-stopped
-
-  # Social Ingest Service (TypeScript)
-  social-ingest:
-    build:
-      context: ./services/social-ingest
-      dockerfile: Dockerfile
-    ports:
-      - "8100:8100"
-    environment:
-      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
-      - REDIS_URL=redis://redis:6379
-      - AI_PERSONALITY_URL=http://ai-personality:8200
-    volumes:
-      - ./services/social-ingest:/app
-      - /app/node_modules
-    depends_on:
-      - postgres
-      - redis
-      - ai-personality
-    restart: unless-stopped
-
-  # Twitter Auto-Poster (Python)
-  twitter-autoposter:
-    build:
-      context: ./services/twitter-autoposter
-      dockerfile: Dockerfile
-    environment:
-      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
-      - REDIS_URL=redis://redis:6379
-      - AI_PERSONALITY_URL=http://ai-personality:8200
-      - TWITTER_API_KEY=${TWITTER_API_KEY}
-      - TWITTER_API_SECRET=${TWITTER_API_SECRET}
-      - TWITTER_ACCESS_TOKEN=${TWITTER_ACCESS_TOKEN}
-      - TWITTER_ACCESS_SECRET=${TWITTER_ACCESS_SECRET}
-      - TWITTER_BEARER_TOKEN=${TWITTER_BEARER_TOKEN}
-      - TWITTER_POST_INTERVAL=${TWITTER_POST_INTERVAL:-60}
-      - AUTO_GENERATE_TWEETS=${AUTO_GENERATE_TWEETS:-true}
-      - AUTO_POST_ENABLED=${AUTO_POST_ENABLED:-false}
-    volumes:
-      - ./services/twitter-autoposter:/app
-    depends_on:
-      - postgres
-      - redis
-      - ai-personality
+      - ai-core
     restart: unless-stopped
 
   # n8n for workflow automation
@@ -410,14 +229,14 @@ services:
     volumes:
       - n8n_data:/home/node/.n8n
     depends_on:
-      - ai-personality
+      - ai-core
       - core-app
     restart: unless-stopped
 
-  # Analytics Dashboard (Go - 10-50x faster)
-  analytics-dashboard:
+  # Analytics — metrics + streaming + hype detection (Go)
+  analytics:
     build:
-      context: ./services/analytics-dashboard
+      context: ./services/analytics
       dockerfile: Dockerfile
     ports:
       - "8800:8800"
@@ -426,49 +245,25 @@ services:
       - REDIS_URL=redis://redis:6379
       - METRICS_RETENTION_DAYS=${METRICS_RETENTION_DAYS:-90}
       - CACHE_TTL_SECONDS=${CACHE_TTL_SECONDS:-300}
-    depends_on:
-      - redis
-    restart: unless-stopped
-
-  # SEO Optimizer (Python/FastAPI)
-  seo-optimizer:
-    build:
-      context: ./services/seo-optimizer
-      dockerfile: Dockerfile
-    ports:
-      - "9300:9300"
-    environment:
-      - REDIS_URL=redis://redis:6379
-      - AI_PERSONALITY_URL=http://ai-personality:8200
-      - YOUTUBE_PUBLISHER_URL=http://youtube-publisher:8500
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - AI_PROVIDER=${AI_PROVIDER:-openai}
-    volumes:
-      - ./services/seo-optimizer:/app
-    depends_on:
-      - redis
-      - ai-personality
-    restart: unless-stopped
-
-  # Live Stream Analytics (Go - 100x faster concurrency)
-  livestream-analytics:
-    build:
-      context: ./services/livestream-analytics
-      dockerfile: Dockerfile
-    ports:
-      - "9500:9500"
-    environment:
-      - PORT=9500
-      - REDIS_URL=redis://redis:6379
+      # Streaming / hype detection
+      - CORE_API_URL=http://core-app:3000
+      - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET:-dev-internal-secret}
+      - MEDIAMTX_URL=rtmp://mediamtx:1935/live
+      # Platform APIs
       - TWITCH_CLIENT_ID=${TWITCH_CLIENT_ID}
       - TWITCH_CLIENT_SECRET=${TWITCH_CLIENT_SECRET}
       - YOUTUBE_API_KEY=${YOUTUBE_API_KEY}
     depends_on:
       - redis
+      - mediamtx
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8800/health > /dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
-  # Sponsor/Ad Manager (TypeScript/Fastify - 5-10x faster)
+  # Sponsor/Ad Manager (TypeScript/Fastify)
   sponsor-manager:
     build:
       context: ./services/sponsor-manager
@@ -484,150 +279,6 @@ services:
       - redis
       - postgres
     restart: unless-stopped
-
-  # Merchandise Integration (TypeScript/Fastify - 5-10x faster)
-  merch-integration:
-    build:
-      context: ./services/merch-integration
-      dockerfile: Dockerfile
-    ports:
-      - "9800:9800"
-    environment:
-      - PORT=9800
-      - REDIS_URL=redis://redis:6379
-      - PRINTFUL_API_KEY=${PRINTFUL_API_KEY}
-      - TEESPRING_API_KEY=${TEESPRING_API_KEY}
-      - SHOPIFY_API_KEY=${SHOPIFY_API_KEY}
-      - SHOPIFY_SHOP_URL=${SHOPIFY_SHOP_URL}
-    depends_on:
-      - redis
-    restart: unless-stopped
-
-  # Email Marketing (Python/FastAPI)
-  email-marketing:
-    build:
-      context: ./services/email-marketing
-      dockerfile: Dockerfile
-    ports:
-      - "9200:9200"
-    environment:
-      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
-      - REDIS_URL=redis://redis:6379
-      - SENDGRID_API_KEY=${SENDGRID_API_KEY}
-      - MAILCHIMP_API_KEY=${MAILCHIMP_API_KEY}
-      - MAILCHIMP_SERVER=${MAILCHIMP_SERVER:-us1}
-    volumes:
-      - ./services/email-marketing:/app
-    depends_on:
-      - postgres
-      - redis
-    restart: unless-stopped
-
-  # ── Agent Orchestrator :3300 ──────────────────────────────────────────────────
-  agent-orchestrator:
-    build:
-      context: ./services/agent-orchestrator
-      dockerfile: Dockerfile
-    ports:
-      - "3300:3300"
-    environment:
-      - PORT=3300
-      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
-      - REDIS_URL=redis://redis:6379
-      - MCP_GATEWAY_URL=http://mcp-gateway:4100
-      - SKILLS_URL=http://skills:3200
-      - KNOWLEDGE_URL=http://knowledge:3400
-      - AI_PERSONALITY_URL=http://ai-personality:8200
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET:-dev-internal-secret}
-      - APPROVAL_TIMEOUT_HOURS=4
-    depends_on:
-      - postgres
-      - redis
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fs http://localhost:3300/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  # ── MCP Gateway :4100 ─────────────────────────────────────────────────────────
-  mcp-gateway:
-    build:
-      context: ./services/mcp-gateway
-      dockerfile: Dockerfile
-    ports:
-      - "4100:4100"
-    environment:
-      - PORT=4100
-      - REDIS_URL=redis://redis:6379
-      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
-      - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET:-dev-internal-secret}
-    depends_on:
-      - postgres
-      - redis
-    restart: unless-stopped
-
-  # ── Skills Service :3200 ──────────────────────────────────────────────────────
-  skills:
-    build:
-      context: ./services/skills
-      dockerfile: Dockerfile
-    ports:
-      - "3200:3200"
-    environment:
-      - PORT=3200
-      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
-      - REDIS_URL=redis://redis:6379
-      - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET:-dev-internal-secret}
-    depends_on:
-      - postgres
-      - redis
-    restart: unless-stopped
-
-  # ── Knowledge (RAG) :3900 ─────────────────────────────────────────────────────
-  knowledge:
-    build:
-      context: ./services/knowledge
-      dockerfile: Dockerfile
-    ports:
-      - "3900:3900"
-    environment:
-      - PORT=3900
-      - DATABASE_URL=postgresql://postgres:wave@postgres:5432/wave
-      - REDIS_URL=redis://redis:6379
-      - CHROMA_HOST=chromadb
-      - CHROMA_PORT=8000
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-    depends_on:
-      - postgres
-      - redis
-      - chromadb
-    restart: unless-stopped
-
-  # ── Model Router :3700 ────────────────────────────────────────────────────────
-  model-router:
-    build:
-      context: ./services/model-router
-      dockerfile: Dockerfile
-    ports:
-      - "3700:3700"
-    environment:
-      - PORT=3700
-      - REDIS_URL=redis://redis:6379
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - TOGETHER_API_KEY=${TOGETHER_API_KEY}
-      - CORE_API_URL=http://core-app:3000
-      - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET:-dev-internal-secret}
-    depends_on:
-      - redis
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fs http://localhost:3700/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
   # ── Notifications :4000 ───────────────────────────────────────────────────────
   notifications:
@@ -652,53 +303,8 @@ services:
       timeout: 10s
       retries: 3
 
-  # ── Link Router :3500 ────────────────────────────────────────────────────────
-  link-router:
-    build:
-      context: ./services/link-router
-      dockerfile: Dockerfile
-    ports:
-      - "3500:3500"
-    environment:
-      - PORT=3500
-      - REDIS_URL=redis://redis:6379
-      - BASE_URL=${LINK_ROUTER_BASE_URL:-http://localhost:3500}
-      - LINK_TTL_DAYS=${LINK_TTL_DAYS:-365}
-    depends_on:
-      - redis
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3500/health > /dev/null 2>&1 || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-
-  # ── Streaming Integrations :3600 ─────────────────────────────────────────────
-  streaming-integrations:
-    build:
-      context: ./services/streaming-integrations
-      dockerfile: Dockerfile
-    ports:
-      - "3600:3600"
-    environment:
-      - PORT=3600
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      - redis
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3600/health > /dev/null 2>&1 || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-
-  # ollama-gw is intentionally excluded from the default stack.
-  # Ollama requires a GPU to be useful. On Railway (CPU-only), use model-router
-  # which routes to Anthropic / OpenAI / Together AI instead.
-  # To run locally with a GPU: docker compose --profile ai up
-
   # ── Cloud RTMP Ingest :1935 (MediaMTX) ────────────────────────────────────────
-  # Receives RTMP from consoles (PS5, Xbox) or OBS. Stream-engine reads from
+  # Receives RTMP from consoles (PS5, Xbox) or OBS. Analytics service reads from
   # here and rebroadcasts via FFmpeg to Twitch/YouTube/Kick/etc.
   mediamtx:
     image: bluenviron/mediamtx:1.11.3-ffmpeg
@@ -721,35 +327,10 @@ services:
       timeout: 5s
       retries: 3
 
-  # ── Stream Engine :3400 (Go/Fiber) ────────────────────────────────────────────
-  stream-engine:
-    build:
-      context: ./services/stream-engine
-      dockerfile: Dockerfile
-    ports:
-      - "3400:3400"
-    environment:
-      - PORT=3400
-      - REDIS_URL=redis://redis:6379
-      - CORE_API_URL=http://core-app:3000
-      - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET:-dev-internal-secret}
-      - MEDIAMTX_URL=rtmp://mediamtx:1935/live
-    depends_on:
-      - redis
-      - mediamtx
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3400/health > /dev/null 2>&1 || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
 volumes:
   postgres_data:
   redis_data:
   chroma_data:
-  ollama_data:
-  ml_models:
   thumbnail_data:
   thumbnail_models:
   youtube_credentials:
@@ -759,4 +340,3 @@ volumes:
   core_app_keys:
   clipper_cache:
   n8n_data:
-  whatsapp_auth:
