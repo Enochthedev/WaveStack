@@ -23,11 +23,11 @@ var (
 )
 
 type StreamStats struct {
-	StreamID      string
+	StreamID       string
 	CurrentViewers int64
-	PeakViewers   int64
-	MessageCount  int64
-	LastUpdate    time.Time
+	PeakViewers    int64
+	MessageCount   int64
+	LastUpdate     time.Time
 }
 
 func main() {
@@ -142,17 +142,15 @@ func getChatSentiment(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{
-		"sentiment_score":  sentimentScore,
-		"positive_ratio":   float64(positive) / float64(total) * 100,
-		"negative_ratio":   float64(negative) / float64(total) * 100,
-		"total_analyzed":   total,
+		"sentiment_score": sentimentScore,
+		"positive_ratio":  float64(positive) / float64(total) * 100,
+		"negative_ratio":  float64(negative) / float64(total) * 100,
+		"total_analyzed":  total,
 	})
 }
 
 func detectPeakMoments(c *fiber.Ctx) error {
-	streamID := c.Params("stream_id")
-
-	// Placeholder - would analyze viewer/chat spikes
+	// Placeholder - would analyze viewer/chat spikes for c.Params("stream_id")
 	return c.JSON([]fiber.Map{
 		{"timestamp": time.Now().Add(-30 * time.Minute).Format(time.RFC3339), "type": "viewer_spike", "value": 150},
 		{"timestamp": time.Now().Add(-15 * time.Minute).Format(time.RFC3339), "type": "chat_spike", "value": 50},
@@ -212,7 +210,7 @@ func trackChatMessage(c *fiber.Ctx) error {
 
 func handleWebSocket(c *websocket.Conn) {
 	streamID := c.Params("stream_id")
-	
+
 	for {
 		if stats, ok := streamStats.Load(streamID); ok {
 			if err := c.WriteJSON(stats); err != nil {

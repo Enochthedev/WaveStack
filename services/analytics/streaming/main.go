@@ -6,9 +6,9 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/logger"
-	"github.com/wavestack/stream-engine/internal/api"
-	"github.com/wavestack/stream-engine/internal/relay"
-	"github.com/wavestack/stream-engine/internal/ws"
+	"wavestack/analytics-dashboard/streaming/api"
+	"wavestack/analytics-dashboard/streaming/relay"
+	"wavestack/analytics-dashboard/streaming/ws"
 )
 
 func main() {

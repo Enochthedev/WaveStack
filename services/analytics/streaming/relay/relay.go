@@ -20,11 +20,11 @@ import (
 // PlatformIngest maps platform IDs to their RTMP ingest base URLs.
 // The stream key is appended by the caller.
 var PlatformIngest = map[string]string{
-	"twitch":  "rtmp://live.twitch.tv/app/",
-	"youtube": "rtmp://a.rtmp.youtube.com/live2/",
-	"kick":    "rtmp://fa723fc1b171.global-contribute.live-video.net/app/",
+	"twitch":   "rtmp://live.twitch.tv/app/",
+	"youtube":  "rtmp://a.rtmp.youtube.com/live2/",
+	"kick":     "rtmp://fa723fc1b171.global-contribute.live-video.net/app/",
 	"facebook": "rtmps://live-api-s.facebook.com:443/rtmp/",
-	"tiktok":  "rtmp://push.rtmp.tiktok.com/live/",
+	"tiktok":   "rtmp://push.rtmp.tiktok.com/live/",
 }
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -84,9 +84,9 @@ func NewManager() *Manager {
 
 // StartRequest is the payload for starting a rebroadcast session.
 type StartRequest struct {
-	OrgID     string           `json:"org_id"`
-	SourceURL string           `json:"source_url"` // RTMP source (MediaMTX output)
-	Targets   []TargetRequest  `json:"targets"`
+	OrgID     string          `json:"org_id"`
+	SourceURL string          `json:"source_url"` // RTMP source (MediaMTX output)
+	Targets   []TargetRequest `json:"targets"`
 }
 
 // TargetRequest describes one platform to relay to.

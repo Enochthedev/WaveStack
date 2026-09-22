@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/wavestack/stream-engine/internal/detector"
+	"wavestack/analytics-dashboard/streaming/detector"
 )
 
 // In-memory store for active sessions (replace with Redis in production)

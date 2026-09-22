@@ -21,10 +21,10 @@ var (
 )
 
 type Config struct {
-	Port              string
-	RedisURL          string
-	CacheTTL          time.Duration
-	MetricsRetention  int
+	Port             string
+	RedisURL         string
+	CacheTTL         time.Duration
+	MetricsRetention int
 }
 
 func loadConfig() *Config {
@@ -83,10 +83,10 @@ func main() {
 		Prefork:               false, // Set to true for multi-core production
 		ServerHeader:          "WaveStack",
 		StrictRouting:         false,
-		CaseSensitive:        false,
-		ReadTimeout:          time.Second * 10,
-		WriteTimeout:         time.Second * 10,
-		IdleTimeout:          time.Second * 120,
+		CaseSensitive:         false,
+		ReadTimeout:           time.Second * 10,
+		WriteTimeout:          time.Second * 10,
+		IdleTimeout:           time.Second * 120,
 	})
 
 	// Middleware
@@ -118,10 +118,10 @@ func setupRoutes(app *fiber.App, config *Config) {
 	// Health check
 	app.Get("/", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
-			"service":  "WaveStack Analytics Dashboard",
-			"language": "Go",
-			"version":  "2.0.0",
-			"status":   "running",
+			"service":     "WaveStack Analytics Dashboard",
+			"language":    "Go",
+			"version":     "2.0.0",
+			"status":      "running",
 			"performance": "10-50x faster than Python",
 			"features": []string{
 				"real_time_metrics",
