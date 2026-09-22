@@ -1,85 +1,115 @@
+# 🌊 WaveStack
 
-# 🌊 WaveStack  
+**A self-hostable automation stack for streamers: capture → clip → approve → publish, without gluing together six SaaS tools.** A Fastify core queues the work, a Python service cuts highlights with ffmpeg, a Go service tracks live analytics, and Discord bots plus a Next.js dashboard put approvals where you already are.
 
-[![Docker](https://img.shields.io/badge/Docker-ready-blue?logo=docker)](https://www.docker.com/)  
-[![Made with Node.js](https://img.shields.io/badge/Node.js-Framework-green?logo=node.js)](https://nodejs.org/)  
-[![Services](https://img.shields.io/badge/Multi‑service-architecture-orange)](#)  
-[![Go](https://img.shields.io/badge/Go-services-00ADD8?logo=go)](https://go.dev/)  
-[![n8n](https://img.shields.io/badge/n8n-workflows-FE8C01?logo=n8n)](https://n8n.io/)
-[![Built by Wavedidwhat](https://img.shields.io/badge/Built%20by-Wavedidwhat-purple?logo=twitch)](https://twitch.tv/wavedidwhat)  
-[![License](https://img.shields.io/badge/license-MIT-lightgrey)](./LICENSE)  
+![TypeScript](https://img.shields.io/badge/TypeScript-Fastify_+_Next.js-3178C6?style=flat-square&logo=typescript&logoColor=white)
+![Python](https://img.shields.io/badge/Python-FastAPI_+_PyTorch-3776AB?style=flat-square&logo=python&logoColor=white)
+![Go](https://img.shields.io/badge/Go-Fiber-00ADD8?style=flat-square&logo=go&logoColor=white)
+![Kubernetes](https://img.shields.io/badge/Kubernetes-kustomize-326CE5?style=flat-square&logo=kubernetes&logoColor=white)
 
----
+## Why this exists
 
-WaveStack is my playground for building tools that make a creator’s life easier.  
-Think of it as a **creator automation stack** — part AI, part workflow engine, part fun experiments.  
+A creator's workflow is a chain of small, boring, repetitive jobs: scrub the VOD, cut the good bit, caption it, resize it per platform, post it, tell the Discord. Each step has a SaaS product with a subscription, and none of them talk to each other. WaveStack is the self-hosted version of that chain: one stack you run yourself, where a clip can go from "chat spiked at 01:12:30" to a queued, approved post without a human doing the busywork.
 
-Instead of juggling dozens of apps, bots, and manual tasks, WaveStack brings them into one stack you can actually run yourself.  
+## What's in the stack
 
----
+| Piece                                                | Language                             | What it does                                                  |
+| ---------------------------------------------------- | ------------------------------------ | ------------------------------------------------------------- |
+| `apps/core-app`                                      | TypeScript (Fastify, Prisma, BullMQ) | API and job orchestration, with OpenTelemetry tracing         |
+| `apps/web`                                           | Next.js                              | Dashboard: queue, approvals, analytics, live updates over SSE |
+| `apps/mobile`                                        | Expo / React Native                  | Approvals on the phone                                        |
+| `apps/desktop`                                       | Electron                             | Desktop shell                                                 |
+| `services/clipper`                                   | Python (FastAPI + ffmpeg)            | Cuts highlights out of a stream or VOD                        |
+| `services/ai-core`                                   | Python (FastAPI + PyTorch)           | Models behind highlight detection and content suggestions     |
+| `services/publisher`                                 | Python (FastAPI)                     | Pushes finished clips to platforms                            |
+| `services/analytics`                                 | **Go** (Fiber + Redis)               | Live stream analytics and hype detection                      |
+| `services/community-bot`                             | TypeScript (discord.js)              | Discord bot: engagement, moderation, clip sharing             |
+| `services/notifications`, `services/sponsor-manager` | TypeScript                           | Alerts and sponsorship tracking                               |
+| `workflows/n8n-templates`                            | n8n                                  | Drag-and-drop automations for platforms not covered in code   |
+| `infra/`                                             | Compose, kustomize, Caddy            | Local stack and Kubernetes manifests                          |
 
-## ✨ What It Does  
+## Architecture
 
-- 🎬 **Auto‑clipping highlights**  
-  Never miss a good stream moment again.  
+```mermaid
+flowchart LR
+    T["Twitch / YouTube"] -->|stream + chat| AN["analytics (Go)<br/>hype detection"]
+    AN -->|"highlight moments"| CORE
+    subgraph CORE["core-app (Fastify)"]
+        Q["BullMQ queues"]
+        API["REST API"]
+    end
+    CORE --> CL["clipper (Python)<br/>ffmpeg"]
+    CORE --> AI["ai-core (Python)<br/>PyTorch"]
+    CL --> APPROVE{"approval"}
+    APPROVE -->|Discord bot| D["community-bot"]
+    APPROVE -->|dashboard| W["web (Next.js)"]
+    APPROVE -->|phone| M["mobile (Expo)"]
+    APPROVE -->|approved| PUB["publisher (Python)"]
+    PUB --> SOCIAL["social platforms"]
+    CORE --> DB[("PostgreSQL<br/>Prisma")]
+    CORE --> R[("Redis<br/>queues + cache")]
+    CORE -.-> N8N["n8n workflows"]
+```
 
-- 🤖 **Discord bot + automations**  
-  Keep your community engaged, moderate chats, and share highlights automatically.  
+## Getting started
 
-- 🧩 **Workflow engine (n8n)**  
-  Plug into Twitch, YouTube, Twitter/X, and other platforms with drag‑and‑drop logic.  
+**Requirements:** Docker + Compose. For working on the code: Node 22 with pnpm 9, Python 3.11, Go 1.21+.
 
-- 🎨 **Art & branding generator**  
-  Make banners, overlays, thumbnails, or channel art on the fly.  
+### Everything at once (Docker)
 
-- 🖥 **Creator hub pages**  
-  Showcase clips, highlights, and links on a personal page.  
+```bash
+cp .env.example .env
+docker compose up -d
+```
 
-- ⚡ **Ops & integrations**  
-  Hooks into the same tools creators and teams already use.  
+Brings up Postgres, Redis, core-app, web, clipper, ai-core, publisher, analytics, notifications, the Discord bot and n8n. More detail in [QUICKSTART.md](QUICKSTART.md).
 
-- ☁️ **Flexible storage**  
-  Save clips locally or push them to S3, Google Drive, or OneDrive.  
+### Working on the code
 
----
+```bash
+pnpm install                                   # workspace: apps/*, services/*, packages/*
+pnpm -C apps/core-app exec prisma generate
+pnpm -C apps/core-app exec prisma migrate deploy
+pnpm dev                                       # core-app in watch mode
+```
 
-## 🚀 Why WaveStack?  
+Checks:
 
-Because being a creator is already stressful enough.  
-This stack is here to offload the repetitive stuff so you can focus on what actually matters: **creating**.  
+```bash
+pnpm typecheck                 # all workspaces
+pnpm lint
+pnpm -C apps/core-app test     # 47 tests (vitest)
+```
 
----
+Go services:
 
-## 🛠 Roadmap  
+```bash
+cd services/analytics && go build ./... && go test ./...
+```
 
-- ✅ Core API & Clipper service  
-- ✅ n8n workflow engine  
-- 🚧 Discord bot for creators & communities  
-- 🚧 Uploader service (S3/Drive/OneDrive)  
-- 🚧 Stream & brand art generator  
-- 🌐 Public hosted version (coming later)  
+### Kubernetes
 
----
+```bash
+kubectl kustomize infra/k8s/overlays/dev | kubectl apply -f -
+```
 
-## 👀 Who’s It For?  
+`infra/k8s` is a kustomize base (23 objects: namespace, config, secrets, infra services, apps, ingress) with `dev` and `prod` overlays. CI renders all three and validates them with `kubeconform -strict` on every push.
 
-- **🎥 Streamers** → automated highlights, overlays, and Discord bot magic.  
-- **👥 Communities** → workflows and bots that keep things running smoothly.  
-- **👩‍💻 Developers** → modular services, open APIs, and full self‑hosting.  
+## Project status
 
----
+This is a working stack, not a product. Honest state as of this pass:
 
-## 📖 Docs & Setup  
+- ✅ `pnpm typecheck` clean · `pnpm lint` clean (112 warnings left as visible debt) · core-app tests 47/47
+- ✅ Go analytics: `go build`, `go vet` and `go test` all pass (the module used to be unbuildable: bad `go.sum` hashes and imports pointing at a repo that doesn't exist)
+- ✅ k8s: base + dev + prod render and pass `kubeconform -strict` (23/23 valid each)
+- 🟡 Python services (`clipper`, `ai-core`, `publisher`) ship tests but were not executed in this pass
+- 🟡 `_archived/` holds earlier services (agent orchestrator, MCP gateway, knowledge base, stream engine…) kept for reference
+- ⚠️ No hosted demo. Self-host it or run the Compose stack locally.
 
-If you want to run WaveStack locally, head over to the [**/docs**](./docs) folder.  
-Everything you need to get started (with Docker, configs, and services) lives there.  
+## Docs
 
----
+[Architecture](docs/ARCHITECTURE.md) · [Codebase map](docs/CODEBASE.md) · [Structure](docs/STRUCTURE.md) · [Local setup](docs/LOCAL-SETUP.md) · [API reference](docs/API-REFERENCE.md) · [Bot integration](docs/BOT-INTEGRATION.md) · [AI personality](docs/AI-PERSONALITY-GUIDE.md) · [Production deploy](docs/PROD-DEPLOY.md) · [Railway](docs/RAILWAY-DEPLOYMENT.md) · [QA](docs/QA.md)
 
-## 📺 Follow the Journey  
+## License
 
-- 🟣 Twitch: [twitch.tv/wavedidwhat](https://twitch.tv/wavedidwhat)  
-- 🐦 Twitter/X: [@wavedidwhat](https://x.com/wavedidwhat)  
-- ⭐ Star this repo if you want to support development!  
-
----
+[MIT](LICENSE) · Built by [Enoch (Enochthedev)](https://github.com/Enochthedev) — [twitch.tv/wavedidwhat](https://twitch.tv/wavedidwhat)

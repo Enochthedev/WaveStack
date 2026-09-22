@@ -232,11 +232,11 @@ func getEngagementMetrics(orgID string, days int) (map[string]interface{}, error
 	}
 
 	return map[string]interface{}{
-		"total_views":      views,
-		"total_likes":      likes,
-		"total_comments":   comments,
-		"total_shares":     shares,
-		"engagement_rate":  engagementRate,
+		"total_views":     views,
+		"total_likes":     likes,
+		"total_comments":  comments,
+		"total_shares":    shares,
+		"engagement_rate": engagementRate,
 	}, nil
 }
 

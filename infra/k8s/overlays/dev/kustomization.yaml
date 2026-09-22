@@ -23,9 +23,9 @@ patches:
     target:
       kind: StatefulSet
 
-configMapGenerator:
-  - name: wavestack-config
-    behavior: merge
-    literals:
-      - NODE_ENV=development
-      - LOG_LEVEL=debug
+  # The base ships wavestack-config as a plain resource, so configMapGenerator
+  # cannot merge into it (that only works for generated ConfigMaps).
+  - path: configmap-patch.yaml
+    target:
+      kind: ConfigMap
+      name: wavestack-config

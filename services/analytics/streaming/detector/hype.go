@@ -17,8 +17,8 @@ var HypeWeights = struct {
 
 // Normalisation bounds (tune these with real data)
 const (
-	maxAudioRMS    = 0.9  // full loudness
-	maxChatRate    = 50.0 // messages/sec
+	maxAudioRMS    = 0.9   // full loudness
+	maxChatRate    = 50.0  // messages/sec
 	maxViewerDelta = 100.0 // viewers gained/lost per interval
 )
 

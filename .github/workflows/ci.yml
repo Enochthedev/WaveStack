@@ -18,9 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
+      - uses: pnpm/action-setup@v4 # version comes from packageManager in package.json
 
       - uses: actions/setup-node@v4
         with:
@@ -46,9 +44,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
+      - uses: pnpm/action-setup@v4 # version comes from packageManager in package.json
 
       - uses: actions/setup-node@v4
         with:
@@ -107,9 +103,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
+      - uses: pnpm/action-setup@v4 # version comes from packageManager in package.json
 
       - uses: actions/setup-node@v4
         with:
@@ -135,3 +129,24 @@ jobs:
           name: coverage
           path: apps/core-app/coverage/
           retention-days: 7
+
+  # ── Kubernetes manifests ─────────────────────────────────────────────────────
+  k8s-manifests:
+    name: Validate k8s manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install kubeconform
+        run: |
+          curl -sSLo kubeconform.tar.gz https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz
+          tar xzf kubeconform.tar.gz kubeconform
+          sudo mv kubeconform /usr/local/bin/
+
+      - name: Render and validate every overlay
+        run: |
+          for target in infra/k8s/base infra/k8s/overlays/dev infra/k8s/overlays/prod; do
+            echo "::group::$target"
+            kubectl kustomize "$target" | kubeconform -strict -summary -
+            echo "::endgroup::"
+          done
