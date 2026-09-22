@@ -31,6 +31,9 @@ export function useSSE() {
   const attemptRef = useRef(0);
   const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
+  // Holds the latest connect() so the retry timer can call it without the
+  // callback referencing itself before it is declared.
+  const connectRef = useRef<() => void>(() => {});
 
   const handleEvent = useCallback(
     (event: SSEEvent) => {
@@ -204,10 +207,14 @@ export function useSSE() {
         setStatus("reconnecting");
         const delay = getBackoffMs(attemptRef.current++);
         retryRef.current = setTimeout(() => {
-          if (mountedRef.current) connect();
+          if (mountedRef.current) connectRef.current();
         }, delay);
       });
   }, [session, handleEvent, setStatus]);
+
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
 
   useEffect(() => {
     mountedRef.current = true;
