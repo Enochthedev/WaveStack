@@ -41,9 +41,9 @@ patches:
       kind: Ingress
       name: wavestack-ingress
 
-configMapGenerator:
-  - name: wavestack-config
-    behavior: merge
-    literals:
-      - NODE_ENV=production
-      - LOG_LEVEL=info
+  # The base ships wavestack-config as a plain resource, so configMapGenerator
+  # cannot merge into it (that only works for generated ConfigMaps).
+  - path: configmap-patch.yaml
+    target:
+      kind: ConfigMap
+      name: wavestack-config

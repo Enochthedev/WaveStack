@@ -110,3 +110,7 @@ jwt-*.pem
 
 # Internal 
 scripts/
+# AI assistant config
+.claude/
+CLAUDE.md
+.agent/
